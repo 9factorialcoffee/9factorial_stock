@@ -2,7 +2,7 @@
   "name": "9! COFFEE Stock",
   "short_name": "9! COFFEE",
   "description": "ระบบตรวจสอบสต็อคสินค้า 9! COFFEE",
-  "start_url": "/",
+  "start_url": "/9factorial_stock/",
   "display": "standalone",
   "background_color": "#1a4a2e",
   "theme_color": "#1a4a2e",
