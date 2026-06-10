@@ -279,7 +279,7 @@ select.form-control { -webkit-appearance:none; }
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost btn-full" onclick="closeTxModal()">ยกเลิก</button>
-      <button class="btn btn-gold btn-full" onclick="submitTransaction()">✅ บันทึก</button>
+      <button class="btn btn-gold btn-full" id="btn-submit-tx" onclick="submitTransaction()">✅ บันทึก</button>
     </div>
   </div>
 </div>
@@ -656,6 +656,12 @@ function setType(t){txType=t;['in','out','adjust'].forEach(x=>document.getElemen
 async function submitTransaction(){
   const qty=parseFloat(document.getElementById('tx-qty').value);
   if(!qty||qty<=0){showToast('กรุณากรอกจำนวน',true);return;}
+
+  // ปิดปุ่มทันที ป้องกันกดซ้ำ
+  const btn=document.getElementById('btn-submit-tx');
+  btn.disabled=true;
+  btn.textContent='⏳ กำลังบันทึก...';
+
   const reason=document.getElementById('tx-reason').value;
   try{
     const res=await fetch(API+'/transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:txProductId,type:txType,quantity:qty,reason,user_id:currentUser.id,user_name:currentUser.name})});
@@ -663,6 +669,11 @@ async function submitTransaction(){
     if(data.ok){closeTxModal();showToast('✅ บันทึกสำเร็จ');loadStock();loadHome();}
     else{showToast(data.error||'เกิดข้อผิดพลาด',true);}
   }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
+  finally{
+    // เปิดปุ่มคืนเสมอ
+    btn.disabled=false;
+    btn.textContent='✅ บันทึก';
+  }
 }
 
 // ── ADD PRODUCT ──
