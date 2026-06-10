@@ -239,7 +239,11 @@ select.form-control { -webkit-appearance:none; }
       <p id="print-date"></p>
     </div>
     <!-- Month tabs -->
-    <div class="month-tab-row no-print" id="month-tabs"></div>
+    <div class="no-print" id="month-selector" style="margin-bottom:14px">
+      <select class="form-control" id="month-select" onchange="selectMonthDrop(this.value)"
+        style="background:var(--card);font-weight:500;color:var(--green);border-color:var(--green)">
+      </select>
+    </div>
     <!-- Report content -->
     <div id="report-content"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
@@ -351,10 +355,10 @@ async function doAuth() {
       document.getElementById('app').style.display='block';
       const chip=document.getElementById('user-chip');
       chip.textContent=(data.user.role==='owner'?'👑 ':'👤 ')+data.user.name;
-      if (data.user.role === 'owner') {
+      if(data.user.role==='owner'){
         chip.classList.add('role-owner');
-        document.getElementById('add-product-btn').style.display = 'flex';
-        document.getElementById('nav-report').style.display = 'flex';
+        document.getElementById('add-product-btn').style.display='flex';
+        document.getElementById('nav-report').style.display='flex';
       }
       initApp();
     } else { document.getElementById('pin-error').textContent='❌ PIN ไม่ถูกต้อง'; pin=''; updateDots(); }
@@ -366,8 +370,8 @@ function logout() {
   document.getElementById('login-page').style.display='flex';
   updateDots(); document.getElementById('pin-error').textContent='';
   document.getElementById('user-chip').classList.remove('role-owner');
-  document.getElementById('add-product-btn').style.display = 'none';
-  document.getElementById('nav-report').style.display = 'none';
+  document.getElementById('add-product-btn').style.display='none';
+  document.getElementById('nav-report').style.display='none';
 }
 
 // ── NAV ──
@@ -473,26 +477,46 @@ function renderTxItem(t) {
 }
 
 // ── REPORT (รายเดือน) ──
-function buildMonthTabs() {
-  const now=new Date();
-  let tabs='';
-  for(let i=0;i<12;i++){
-    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-    const val=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    const label=`${THAI_MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
-    if(i===0) selectedMonth=val;
-    tabs+=`<button class="month-tab ${i===0?'active':''}" onclick="selectMonth('${val}',this)">${label}</button>`;
+async function buildMonthDropdown() {
+  // ดึงเดือนแรกที่มี transaction จาก DB
+  let firstMonth = null;
+  try {
+    const res = await fetch(API + '/report/first-month').then(r => r.json());
+    firstMonth = res.first_month;
+  } catch {}
+
+  const now = new Date();
+  let start;
+  if (firstMonth) {
+    const [y, m] = firstMonth.split('-');
+    start = new Date(parseInt(y), parseInt(m) - 1, 1);
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
   }
-  document.getElementById('month-tabs').innerHTML=tabs;
+
+  // สร้าง list เดือนจาก now ย้อนหลังถึง start (ไม่เกิน 12 เดือน)
+  const months = [];
+  let cur = new Date(now.getFullYear(), now.getMonth(), 1);
+  while (cur >= start && months.length < 12) {
+    const val = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
+    const label = `${THAI_MONTHS_FULL[cur.getMonth()]} ${cur.getFullYear()+543}`;
+    months.push({ val, label });
+    cur.setMonth(cur.getMonth() - 1);
+  }
+
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = months.map(m =>
+    `<option value="${m.val}">${m.label}</option>`
+  ).join('');
+
+  selectedMonth = months[0]?.val || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 }
-function selectMonth(val,el) {
-  selectedMonth=val;
-  document.querySelectorAll('.month-tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
+function selectMonthDrop(val) {
+  selectedMonth = val;
   loadMonthlyReport(val);
 }
 async function loadReport() {
-  buildMonthTabs();
+  await buildMonthDropdown();
   loadMonthlyReport(selectedMonth);
 }
 async function loadMonthlyReport(month) {
