@@ -576,8 +576,10 @@ async function loadReport() {
     const totalOut = data.reduce((s, p) => s + p.total_out, 0);
     let html = `
       <div class="stat-grid">
-        <div class="stat-card"><div class="stat-num" style="font-size:1.4rem">+${totalIn.toFixed(1)}</div><div class="stat-label">รับเข้า 30 วัน</div></div>
-        <div class="stat-card"><div class="stat-num" style="font-size:1.4rem;color:var(--danger)">-${totalOut.toFixed(1)}</div><div class="stat-label">เบิกออก 30 วัน</div></div>
+        <div class="stat-num" style="font-size:1.4rem">${totalIn} ครั้ง</div>
+        <div class="stat-label">รับเข้า 30 วัน · ${data.reduce((s,p)=>s+p.in_products,0)} รายการ</div>
+        <div class="stat-num" style="font-size:1.4rem;color:var(--danger)">${totalOut} ครั้ง</div>
+        <div class="stat-label">เบิกออก 30 วัน · ${data.reduce((s,p)=>s+p.out_products,0)} รายการ</div>
       </div>
       <div class="section-title">สรุปการเคลื่อนไหวสต็อค (30 วัน)</div>
       <div class="card">`;
