@@ -12,215 +12,173 @@
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
-
 <style>
-  :root {
-    --green:     #1a4a2e;
-    --green-mid: #256340;
-    --green-lt:  #2e7d52;
-    --gold:      #c9a84c;
-    --gold-lt:   #f0d080;
-    --cream:     #faf6ef;
-    --bg:        #f4f0e8;
-    --card:      #ffffff;
-    --text:      #1a2a1e;
-    --muted:     #7a8a7e;
-    --danger:    #c0392b;
-    --danger-lt: #fdecea;
-    --warn:      #e67e22;
-    --warn-lt:   #fef3e2;
-    --radius:    14px;
-    --shadow:    0 2px 16px rgba(26,74,46,.10);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body { font-family: 'Kanit', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+:root {
+  --green:#1a4a2e; --green-mid:#256340; --green-lt:#2e7d52;
+  --gold:#c9a84c; --gold-lt:#f0d080;
+  --cream:#faf6ef; --bg:#f4f0e8; --card:#ffffff;
+  --text:#1a2a1e; --muted:#7a8a7e;
+  --danger:#c0392b; --danger-lt:#fdecea;
+  --warn:#e67e22; --warn-lt:#fef3e2;
+  --radius:14px; --shadow:0 2px 16px rgba(26,74,46,.10);
+}
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
 
-  .topbar {
-    background: var(--green); color: #fff;
-    padding: 14px 18px 12px;
-    display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 2px 12px rgba(0,0,0,.2);
-  }
-  .topbar-logo { font-size: 1.25rem; font-weight: 700; letter-spacing: .5px; display: flex; align-items: center; gap: 8px; }
-  .topbar-logo span { color: var(--gold); }
-  .topbar-right { display: flex; align-items: center; gap: 10px; }
-  .user-chip { background: rgba(255,255,255,.15); border-radius: 20px; padding: 4px 12px; font-size: .8rem; font-weight: 500; }
-  .role-owner { background: rgba(201,168,76,.25); color: var(--gold-lt); }
-  .btn-logout { background: none; border: none; color: rgba(255,255,255,.6); font-size: 1.1rem; cursor: pointer; padding: 4px; }
+.topbar { background:var(--green); color:#fff; padding:14px 18px 12px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,.2); }
+.topbar-logo { font-size:1.25rem; font-weight:700; letter-spacing:.5px; display:flex; align-items:center; gap:8px; }
+.topbar-logo span { color:var(--gold); }
+.topbar-right { display:flex; align-items:center; gap:10px; }
+.user-chip { background:rgba(255,255,255,.15); border-radius:20px; padding:4px 12px; font-size:.8rem; font-weight:500; }
+.role-owner { background:rgba(201,168,76,.25); color:var(--gold-lt); }
+.btn-logout { background:none; border:none; color:rgba(255,255,255,.6); font-size:1.1rem; cursor:pointer; padding:4px; }
 
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--green);
-    display: flex; border-top: 1px solid rgba(255,255,255,.1);
-    z-index: 100; padding-bottom: env(safe-area-inset-bottom);
-  }
-  .nav-btn {
-    flex: 1; background: none; border: none; color: rgba(255,255,255,.5);
-    padding: 10px 4px 8px; font-size: .65rem; font-family: 'Kanit', sans-serif;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    cursor: pointer; transition: color .2s;
-  }
-  .nav-btn .icon { font-size: 1.35rem; }
-  .nav-btn.active { color: var(--gold); }
-  .nav-btn.active .icon { transform: scale(1.1); }
+.bottom-nav { position:fixed; bottom:0; left:0; right:0; background:var(--green); display:flex; border-top:1px solid rgba(255,255,255,.1); z-index:100; padding-bottom:env(safe-area-inset-bottom); }
+.nav-btn { flex:1; background:none; border:none; color:rgba(255,255,255,.5); padding:10px 4px 8px; font-size:.65rem; font-family:'Kanit',sans-serif; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; transition:color .2s; }
+.nav-btn .icon { font-size:1.35rem; }
+.nav-btn.active { color:var(--gold); }
+.nav-btn.active .icon { transform:scale(1.1); }
 
-  .page { display: none; padding: 16px 16px 90px; }
-  .page.active { display: block; }
+.page { display:none; padding:16px 16px 90px; }
+.page.active { display:block; }
 
-  #login-page {
-    min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    background: linear-gradient(160deg, var(--green) 0%, #0d2b1a 100%);
-    padding: 32px 24px;
-  }
-  .login-logo { text-align: center; margin-bottom: 32px; }
-  .login-logo .big { font-size: 3.5rem; font-weight: 700; color: var(--gold); letter-spacing: -1px; line-height: 1; }
-  .login-logo .sub { font-size: 1rem; color: rgba(255,255,255,.6); letter-spacing: 4px; margin-top: 4px; }
-  .login-card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 340px; backdrop-filter: blur(10px); }
-  .login-card h2 { color: #fff; font-size: 1rem; margin-bottom: 20px; text-align: center; font-weight: 400; letter-spacing: 1px; }
-  .pin-display { display: flex; justify-content: center; gap: 12px; margin-bottom: 24px; }
-  .pin-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); transition: all .15s; }
-  .pin-dot.filled { background: var(--gold); border-color: var(--gold); }
-  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .pin-key {
-    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1);
-    border-radius: 12px; color: #fff; font-size: 1.4rem; font-family: 'IBM Plex Mono', monospace;
-    font-weight: 600; padding: 16px; cursor: pointer; transition: all .1s; text-align: center;
-  }
-  .pin-key:active { background: rgba(201,168,76,.3); border-color: var(--gold); transform: scale(.95); }
-  .pin-error { color: #ff8a8a; text-align: center; font-size: .85rem; margin-top: 12px; min-height: 20px; }
+#login-page { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(160deg,var(--green) 0%,#0d2b1a 100%); padding:32px 24px; }
+.login-logo { text-align:center; margin-bottom:32px; }
+.login-logo .big { font-size:3.5rem; font-weight:700; color:var(--gold); letter-spacing:-1px; line-height:1; }
+.login-logo .sub { font-size:1rem; color:rgba(255,255,255,.6); letter-spacing:4px; margin-top:4px; }
+.login-card { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:28px 24px; width:100%; max-width:340px; backdrop-filter:blur(10px); }
+.login-card h2 { color:#fff; font-size:1rem; margin-bottom:20px; text-align:center; font-weight:400; letter-spacing:1px; }
+.pin-display { display:flex; justify-content:center; gap:12px; margin-bottom:24px; }
+.pin-dot { width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,.3); transition:all .15s; }
+.pin-dot.filled { background:var(--gold); border-color:var(--gold); }
+.pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.pin-key { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); border-radius:12px; color:#fff; font-size:1.4rem; font-family:'IBM Plex Mono',monospace; font-weight:600; padding:16px; cursor:pointer; transition:all .1s; text-align:center; }
+.pin-key:active { background:rgba(201,168,76,.3); border-color:var(--gold); transform:scale(.95); }
+.pin-error { color:#ff8a8a; text-align:center; font-size:.85rem; margin-top:12px; min-height:20px; }
 
-  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
+.card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden; }
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.stat-card { background:var(--card); border-radius:var(--radius); padding:14px 16px; box-shadow:var(--shadow); border-left:4px solid var(--green); }
+.stat-card.warn { border-color:var(--warn); }
+.stat-card.danger { border-color:var(--danger); }
+.stat-card.in-card { border-color:var(--green-lt); }
+.stat-card.out-card { border-color:var(--danger); }
+.stat-card.gold-card { border-color:var(--gold); }
+.stat-num { font-size:2rem; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--green); line-height:1; }
+.stat-card.warn .stat-num { color:var(--warn); }
+.stat-card.danger .stat-num { color:var(--danger); }
+.stat-card.in-card .stat-num { color:var(--green-lt); }
+.stat-card.out-card .stat-num { color:var(--danger); }
+.stat-card.gold-card .stat-num { color:var(--gold); font-size:1.3rem; }
+.stat-label { font-size:.75rem; color:var(--muted); margin-top:4px; }
+.stat-sub { font-size:.7rem; color:var(--muted); margin-top:2px; }
 
-  /* ── STAT GRID ── */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-  .stat-card {
-    background: var(--card); border-radius: var(--radius); padding: 14px 16px;
-    box-shadow: var(--shadow); border-left: 4px solid var(--green);
-  }
-  .stat-card.warn { border-color: var(--warn); }
-  .stat-card.danger { border-color: var(--danger); }
-  .stat-card.in-card { border-color: var(--green-lt); }
-  .stat-card.out-card { border-color: var(--danger); }
-  .stat-num { font-size: 2rem; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: var(--green); line-height: 1; }
-  .stat-card.warn .stat-num { color: var(--warn); }
-  .stat-card.danger .stat-num { color: var(--danger); }
-  .stat-card.in-card .stat-num { color: var(--green-lt); }
-  .stat-card.out-card .stat-num { color: var(--danger); }
-  .stat-label { font-size: .75rem; color: var(--muted); margin-top: 4px; }
-  .stat-sub { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+.product-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; align-items:center; gap:12px; transition:background .15s; }
+.product-item:last-child { border-bottom:none; }
+.product-item:active { background:#f8f5ef; }
+.product-name { font-size:.95rem; font-weight:500; flex:1; }
+.product-cat { font-size:.72rem; color:var(--muted); }
+.stock-badge { font-family:'IBM Plex Mono',monospace; font-size:.9rem; font-weight:600; padding:4px 10px; border-radius:20px; background:#e8f5ec; color:var(--green-lt); min-width:60px; text-align:right; }
+.stock-badge.low { background:var(--warn-lt); color:var(--warn); }
+.stock-badge.critical { background:var(--danger-lt); color:var(--danger); }
 
-  .product-item {
-    padding: 12px 16px; border-bottom: 1px solid #f0ebe0; display: flex; align-items: center; gap: 12px;
-    transition: background .15s;
-  }
-  .product-item:last-child { border-bottom: none; }
-  .product-item:active { background: #f8f5ef; }
-  .product-name { font-size: .95rem; font-weight: 500; flex: 1; }
-  .product-cat { font-size: .72rem; color: var(--muted); }
-  .stock-badge {
-    font-family: 'IBM Plex Mono', monospace; font-size: .9rem; font-weight: 600;
-    padding: 4px 10px; border-radius: 20px; background: #e8f5ec; color: var(--green-lt);
-    min-width: 60px; text-align: right;
-  }
-  .stock-badge.low { background: var(--warn-lt); color: var(--warn); }
-  .stock-badge.critical { background: var(--danger-lt); color: var(--danger); }
+.search-bar { background:var(--card); border-radius:10px; border:1.5px solid #e0dbd0; padding:10px 14px; width:100%; font-family:'Kanit',sans-serif; font-size:.95rem; color:var(--text); margin-bottom:12px; outline:none; transition:border-color .2s; }
+.search-bar:focus { border-color:var(--green); }
 
-  .search-bar {
-    background: var(--card); border-radius: 10px; border: 1.5px solid #e0dbd0;
-    padding: 10px 14px; width: 100%; font-family: 'Kanit', sans-serif; font-size: .95rem;
-    color: var(--text); margin-bottom: 12px; outline: none; transition: border-color .2s;
-  }
-  .search-bar:focus { border-color: var(--green); }
+.btn { border:none; border-radius:10px; padding:11px 20px; font-family:'Kanit',sans-serif; font-size:.95rem; font-weight:500; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:6px; }
+.btn-primary { background:var(--green); color:#fff; }
+.btn-gold { background:var(--gold); color:var(--green); font-weight:600; }
+.btn-gold:active { background:var(--gold-lt); }
+.btn-ghost { background:transparent; color:var(--green); border:1.5px solid var(--green); }
+.btn-full { width:100%; justify-content:center; }
+.btn-sm { padding:7px 14px; font-size:.85rem; }
 
-  .btn {
-    border: none; border-radius: 10px; padding: 11px 20px;
-    font-family: 'Kanit', sans-serif; font-size: .95rem; font-weight: 500;
-    cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 6px;
-  }
-  .btn-primary { background: var(--green); color: #fff; }
-  .btn-gold { background: var(--gold); color: var(--green); font-weight: 600; }
-  .btn-gold:active { background: var(--gold-lt); }
-  .btn-ghost { background: transparent; color: var(--green); border: 1.5px solid var(--green); }
-  .btn-full { width: 100%; justify-content: center; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200; align-items:flex-end; backdrop-filter:blur(3px); }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--card); border-radius:20px 20px 0 0; width:100%; padding:20px 20px calc(20px + env(safe-area-inset-bottom)); animation:slideUp .25s ease; max-height:92vh; overflow-y:auto; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle { width:40px; height:4px; background:#e0dbd0; border-radius:2px; margin:0 auto 16px; }
+.modal-title { font-size:1.1rem; font-weight:600; color:var(--green); margin-bottom:16px; }
 
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55);
-    z-index: 200; align-items: flex-end; backdrop-filter: blur(3px);
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--card); border-radius: 20px 20px 0 0; width: 100%;
-    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
-    animation: slideUp .25s ease; max-height: 92vh; overflow-y: auto;
-  }
-  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-  .modal-handle { width: 40px; height: 4px; background: #e0dbd0; border-radius: 2px; margin: 0 auto 16px; }
-  .modal-title { font-size: 1.1rem; font-weight: 600; color: var(--green); margin-bottom: 16px; }
+.form-group { margin-bottom:14px; }
+.form-label { font-size:.8rem; color:var(--muted); margin-bottom:5px; display:block; font-weight:500; }
+.form-control { width:100%; background:var(--bg); border:1.5px solid #e0dbd0; border-radius:10px; padding:11px 14px; font-family:'Kanit',sans-serif; font-size:.95rem; color:var(--text); outline:none; transition:border-color .2s; }
+.form-control:focus { border-color:var(--green); background:#fff; }
+select.form-control { -webkit-appearance:none; }
 
-  .form-group { margin-bottom: 14px; }
-  .form-label { font-size: .8rem; color: var(--muted); margin-bottom: 5px; display: block; font-weight: 500; }
-  .form-control {
-    width: 100%; background: var(--bg); border: 1.5px solid #e0dbd0;
-    border-radius: 10px; padding: 11px 14px; font-family: 'Kanit', sans-serif;
-    font-size: .95rem; color: var(--text); outline: none; transition: border-color .2s;
-  }
-  .form-control:focus { border-color: var(--green); background: #fff; }
-  select.form-control { -webkit-appearance: none; }
+.type-tabs { display:flex; gap:8px; margin-bottom:14px; }
+.type-tab { flex:1; padding:10px; border-radius:10px; border:1.5px solid #e0dbd0; background:var(--bg); font-family:'Kanit',sans-serif; font-size:.9rem; font-weight:500; cursor:pointer; text-align:center; transition:all .15s; }
+.type-tab.in.active { background:#e8f5ec; border-color:var(--green-lt); color:var(--green-lt); }
+.type-tab.out.active { background:var(--danger-lt); border-color:var(--danger); color:var(--danger); }
+.type-tab.adjust.active { background:#fff8e1; border-color:#f0b429; color:#b07d00; }
 
-  .type-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-  .type-tab {
-    flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #e0dbd0;
-    background: var(--bg); font-family: 'Kanit', sans-serif; font-size: .9rem;
-    font-weight: 500; cursor: pointer; text-align: center; transition: all .15s;
-  }
-  .type-tab.in.active { background: #e8f5ec; border-color: var(--green-lt); color: var(--green-lt); }
-  .type-tab.out.active { background: var(--danger-lt); border-color: var(--danger); color: var(--danger); }
-  .type-tab.adjust.active { background: #fff8e1; border-color: #f0b429; color: #b07d00; }
+.tx-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; gap:10px; }
+.tx-item:last-child { border-bottom:none; }
+.tx-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+.tx-icon.in { background:#e8f5ec; }
+.tx-icon.out { background:var(--danger-lt); }
+.tx-icon.adjust { background:#fff8e1; }
+.tx-info { flex:1; }
+.tx-name { font-size:.9rem; font-weight:500; }
+.tx-meta { font-size:.75rem; color:var(--muted); margin-top:2px; }
+.tx-qty { font-family:'IBM Plex Mono',monospace; font-size:.85rem; font-weight:600; text-align:right; white-space:nowrap; }
+.tx-qty.in { color:var(--green-lt); }
+.tx-qty.out { color:var(--danger); }
 
-  .tx-item { padding: 12px 16px; border-bottom: 1px solid #f0ebe0; display: flex; gap: 10px; }
-  .tx-item:last-child { border-bottom: none; }
-  .tx-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
-  .tx-icon.in { background: #e8f5ec; }
-  .tx-icon.out { background: var(--danger-lt); }
-  .tx-icon.adjust { background: #fff8e1; }
-  .tx-info { flex: 1; }
-  .tx-name { font-size: .9rem; font-weight: 500; }
-  .tx-meta { font-size: .75rem; color: var(--muted); margin-top: 2px; }
-  .tx-qty { font-family: 'IBM Plex Mono', monospace; font-size: .85rem; font-weight: 600; text-align: right; white-space: nowrap; }
-  .tx-qty.in { color: var(--green-lt); }
-  .tx-qty.out { color: var(--danger); }
+.alert-dot { background:var(--danger); color:#fff; border-radius:50%; width:18px; height:18px; font-size:.65rem; font-weight:700; display:flex; align-items:center; justify-content:center; position:absolute; top:6px; right:calc(50% - 22px); }
 
-  .alert-dot {
-    background: var(--danger); color: #fff; border-radius: 50%;
-    width: 18px; height: 18px; font-size: .65rem; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    position: absolute; top: 6px; right: calc(50% - 22px);
-  }
+.report-row { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid #f0ebe0; }
+.report-row:last-child { border-bottom:none; }
+.report-name { font-size:.9rem; font-weight:500; flex:1; }
+.report-nums { display:flex; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:.8rem; }
+.in-num { color:var(--green-lt); }
+.out-num { color:var(--danger); }
 
-  .report-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #f0ebe0; }
-  .report-row:last-child { border-bottom: none; }
-  .report-name { font-size: .9rem; font-weight: 500; flex: 1; }
-  .report-nums { display: flex; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: .8rem; }
-  .in-num { color: var(--green-lt); }
-  .out-num { color: var(--danger); }
+.add-product-btn { position:fixed; bottom:80px; right:18px; width:52px; height:52px; border-radius:50%; background:var(--gold); color:var(--green); font-size:1.6rem; font-weight:700; border:none; box-shadow:0 4px 16px rgba(201,168,76,.4); cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:99; }
+.section-title { font-size:.75rem; font-weight:600; color:var(--muted); letter-spacing:1px; text-transform:uppercase; padding:8px 0 6px; }
+.loader { text-align:center; padding:32px; color:var(--muted); font-size:.9rem; }
+.toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:var(--green); color:#fff; padding:10px 20px; border-radius:20px; font-size:.9rem; font-weight:500; z-index:300; pointer-events:none; opacity:0; transition:opacity .3s; white-space:nowrap; }
+.toast.show { opacity:1; }
+.toast.error { background:var(--danger); }
+.empty-state { text-align:center; padding:40px 20px; color:var(--muted); }
+.empty-state .emoji { font-size:2.5rem; margin-bottom:8px; }
 
-  .add-product-btn { position: fixed; bottom: 80px; right: 18px; width: 52px; height: 52px; border-radius: 50%; background: var(--gold); color: var(--green); font-size: 1.6rem; font-weight: 700; border: none; box-shadow: 0 4px 16px rgba(201,168,76,.4); cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 99; }
+/* ── MONTHLY REPORT ── */
+.month-selector { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.month-selector select { flex:1; }
+.month-tab-row { display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:4px; }
+.month-tab { background:var(--card); border:1.5px solid #e0dbd0; border-radius:20px; padding:5px 14px; font-family:'Kanit',sans-serif; font-size:.8rem; cursor:pointer; white-space:nowrap; transition:all .15s; }
+.month-tab.active { background:var(--green); color:#fff; border-color:var(--green); }
+.top3-item { display:flex; align-items:center; padding:10px 16px; border-bottom:1px solid #f0ebe0; gap:10px; }
+.top3-item:last-child { border-bottom:none; }
+.top3-rank { width:24px; height:24px; border-radius:50%; background:var(--green); color:#fff; font-size:.75rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.top3-rank.r1 { background:var(--gold); color:var(--green); }
+.top3-rank.r2 { background:#aaa; }
+.top3-rank.r3 { background:#cd7f32; }
+.bar-bg { background:#f0ebe0; border-radius:4px; height:6px; margin-top:4px; }
+.bar-fill { height:6px; border-radius:4px; background:var(--green-lt); transition:width .4s; }
+.bar-fill.out { background:var(--danger); }
 
-  .section-title { font-size: .75rem; font-weight: 600; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding: 8px 0 6px; }
-  .loader { text-align: center; padding: 32px; color: var(--muted); font-size: .9rem; }
+/* ── CHART ── */
+.chart-wrap { padding:12px 16px 16px; }
+.chart-title { font-size:.75rem; font-weight:600; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+.chart-svg { width:100%; overflow:visible; }
 
-  .toast {
-    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
-    background: var(--green); color: #fff; padding: 10px 20px; border-radius: 20px;
-    font-size: .9rem; font-weight: 500; z-index: 300; pointer-events: none;
-    opacity: 0; transition: opacity .3s; white-space: nowrap;
-  }
-  .toast.show { opacity: 1; }
-  .toast.error { background: var(--danger); }
-  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
-  .empty-state .emoji { font-size: 2.5rem; margin-bottom: 8px; }
+/* ── PRINT / PDF ── */
+@media print {
+  body { background:#fff !important; }
+  .topbar, .bottom-nav, .add-product-btn, .toast,
+  .modal-overlay, #page-home, #page-stock, #page-history,
+  .month-tab-row, .btn-ghost, .no-print { display:none !important; }
+  .page { display:block !important; padding:0 !important; }
+  #page-report { display:block !important; }
+  .card { box-shadow:none !important; border:1px solid #ddd !important; }
+  .print-header { display:block !important; }
+  .stat-card { box-shadow:none !important; border:1px solid #ddd !important; }
+}
+.print-header { display:none; text-align:center; margin-bottom:16px; }
+.print-header h1 { font-size:1.4rem; color:var(--green); }
+.print-header p { font-size:.85rem; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -274,26 +232,30 @@
     <div id="history-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-report" class="page">
+    <!-- Print header (จะโชว์เฉพาะตอนพิมพ์) -->
+    <div class="print-header" id="print-header">
+      <h1>9! COFFEE</h1>
+      <p id="print-title">รายงานสต็อคประจำเดือน</p>
+      <p id="print-date"></p>
+    </div>
+    <!-- Month tabs -->
+    <div class="month-tab-row no-print" id="month-tabs"></div>
+    <!-- Report content -->
     <div id="report-content"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-btn active" id="nav-home" onclick="switchPage('home')">
-      <span class="icon">🏠</span>หน้าหลัก
-    </button>
+    <button class="nav-btn active" id="nav-home" onclick="switchPage('home')"><span class="icon">🏠</span>หน้าหลัก</button>
     <button class="nav-btn" id="nav-stock" onclick="switchPage('stock')" style="position:relative">
       <span class="icon">📦</span>สต็อค
       <div class="alert-dot" id="low-badge" style="display:none">0</div>
     </button>
-    <button class="nav-btn" id="nav-history" onclick="switchPage('history')">
-      <span class="icon">📋</span>ประวัติ
-    </button>
-    <button class="nav-btn" id="nav-report" onclick="switchPage('report')">
-      <span class="icon">📊</span>รายงาน
-    </button>
+    <button class="nav-btn" id="nav-history" onclick="switchPage('history')"><span class="icon">📋</span>ประวัติ</button>
+    <button class="nav-btn" id="nav-report" onclick="switchPage('report')"><span class="icon">📊</span>รายงาน</button>
   </nav>
 </div>
 
+<!-- TX MODAL -->
 <div class="modal-overlay" id="tx-modal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -318,6 +280,7 @@
   </div>
 </div>
 
+<!-- ADD PRODUCT MODAL -->
 <div class="modal-overlay" id="add-modal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -362,6 +325,8 @@
 
 <script>
 const API = 'https://coffee-stock-api.9factorialcoffee.workers.dev';
+const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const THAI_MONTHS_FULL = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 let currentUser = null;
 let products = [];
@@ -369,266 +334,328 @@ let categories = [];
 let txProductId = null;
 let txType = 'in';
 let pin = '';
+let selectedMonth = '';
 
-function pinPress(d) {
-  if (pin.length >= 4) return;
-  pin += d; updateDots();
-  if (pin.length === 4) { setTimeout(doAuth, 150); }
-}
-function pinDel() { pin = pin.slice(0, -1); updateDots(); }
-function pinClear() { pin = ''; updateDots(); document.getElementById('pin-error').textContent = ''; }
-function updateDots() {
-  document.querySelectorAll('.pin-dot').forEach((d, i) => d.classList.toggle('filled', i < pin.length));
-}
+// ── PIN ──
+function pinPress(d) { if(pin.length>=4)return; pin+=d; updateDots(); if(pin.length===4){setTimeout(doAuth,150);} }
+function pinDel() { pin=pin.slice(0,-1); updateDots(); }
+function pinClear() { pin=''; updateDots(); document.getElementById('pin-error').textContent=''; }
+function updateDots() { document.querySelectorAll('.pin-dot').forEach((d,i)=>d.classList.toggle('filled',i<pin.length)); }
 async function doAuth() {
   try {
-    const res = await fetch(API + '/auth', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ pin }) });
+    const res = await fetch(API+'/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
     const data = await res.json();
-    if (data.ok) {
-      currentUser = data.user;
-      document.getElementById('login-page').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-      const chip = document.getElementById('user-chip');
-      chip.textContent = (data.user.role === 'owner' ? '👑 ' : '👤 ') + data.user.name;
-      if (data.user.role === 'owner') { chip.classList.add('role-owner'); document.getElementById('add-product-btn').style.display = 'flex'; }
+    if(data.ok) {
+      currentUser=data.user;
+      document.getElementById('login-page').style.display='none';
+      document.getElementById('app').style.display='block';
+      const chip=document.getElementById('user-chip');
+      chip.textContent=(data.user.role==='owner'?'👑 ':'👤 ')+data.user.name;
+      if(data.user.role==='owner'){chip.classList.add('role-owner');document.getElementById('add-product-btn').style.display='flex';}
       initApp();
-    } else {
-      document.getElementById('pin-error').textContent = '❌ PIN ไม่ถูกต้อง';
-      pin = ''; updateDots();
-    }
-  } catch { document.getElementById('pin-error').textContent = '❌ เชื่อมต่อไม่ได้'; pin = ''; updateDots(); }
+    } else { document.getElementById('pin-error').textContent='❌ PIN ไม่ถูกต้อง'; pin=''; updateDots(); }
+  } catch { document.getElementById('pin-error').textContent='❌ เชื่อมต่อไม่ได้'; pin=''; updateDots(); }
 }
 function logout() {
-  currentUser = null; pin = '';
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('login-page').style.display = 'flex';
-  updateDots(); document.getElementById('pin-error').textContent = '';
+  currentUser=null; pin='';
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-page').style.display='flex';
+  updateDots(); document.getElementById('pin-error').textContent='';
   document.getElementById('user-chip').classList.remove('role-owner');
-  document.getElementById('add-product-btn').style.display = 'none';
+  document.getElementById('add-product-btn').style.display='none';
 }
 
+// ── NAV ──
 function switchPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
-  if (name === 'home') loadHome();
-  if (name === 'stock') loadStock();
-  if (name === 'history') loadHistory();
-  if (name === 'report') loadReport();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  if(name==='home') loadHome();
+  if(name==='stock') loadStock();
+  if(name==='history') loadHistory();
+  if(name==='report') loadReport();
 }
 
+// ── HOME ──
 async function loadHome() {
   try {
-    const [prods, lowStock, txRes] = await Promise.all([
-      fetch(API + '/products').then(r => r.json()),
-      fetch(API + '/low-stock').then(r => r.json()),
-      fetch(API + '/transactions?limit=5').then(r => r.json()),
+    const [prods,lowStock,txRes] = await Promise.all([
+      fetch(API+'/products').then(r=>r.json()),
+      fetch(API+'/low-stock').then(r=>r.json()),
+      fetch(API+'/transactions?limit=5').then(r=>r.json()),
     ]);
-    const badge = document.getElementById('low-badge');
-    if (lowStock.length > 0) { badge.style.display = 'flex'; badge.textContent = lowStock.length; }
-    else badge.style.display = 'none';
-
-    let html = `
-      <div class="stat-grid">
-        <div class="stat-card"><div class="stat-num">${prods.length}</div><div class="stat-label">รายการสินค้า</div></div>
-        <div class="stat-card ${lowStock.length > 0 ? 'danger' : ''}"><div class="stat-num">${lowStock.length}</div><div class="stat-label">สต็อคต่ำ ⚠️</div></div>
-      </div>`;
-    if (lowStock.length > 0) {
-      html += `<div class="section-title">⚠️ สต็อคต่ำ — ต้องสั่งเพิ่ม</div><div class="card">`;
-      lowStock.slice(0, 3).forEach(p => {
-        html += `<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
+    const badge=document.getElementById('low-badge');
+    if(lowStock.length>0){badge.style.display='flex';badge.textContent=lowStock.length;}
+    else badge.style.display='none';
+    let html=`<div class="stat-grid">
+      <div class="stat-card"><div class="stat-num">${prods.length}</div><div class="stat-label">รายการสินค้า</div></div>
+      <div class="stat-card ${lowStock.length>0?'danger':''}"><div class="stat-num">${lowStock.length}</div><div class="stat-label">สต็อคต่ำ ⚠️</div></div>
+    </div>`;
+    if(lowStock.length>0) {
+      html+=`<div class="section-title">⚠️ สต็อคต่ำ — ต้องสั่งเพิ่ม</div><div class="card">`;
+      lowStock.slice(0,3).forEach(p=>{
+        html+=`<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
           <div style="flex:1"><div class="product-name">${escHtml(p.name)}</div></div>
-          <div class="stock-badge critical">${p.stock_current} ${p.unit}</div>
-        </div>`;
+          <div class="stock-badge critical">${p.stock_current} ${p.unit}</div></div>`;
       });
-      html += `</div>`;
+      html+=`</div>`;
     }
-    html += `<div class="section-title">📋 ธุรกรรมล่าสุด</div><div class="card">`;
-    if (txRes.length === 0) html += `<div class="loader">ยังไม่มีรายการ</div>`;
-    txRes.forEach(t => { html += renderTxItem(t); });
-    html += `</div>`;
-    document.getElementById('home-content').innerHTML = html;
-  } catch { document.getElementById('home-content').innerHTML = `<div class="loader">❌ โหลดไม่ได้ ตรวจสอบการเชื่อมต่อ</div>`; }
+    html+=`<div class="section-title">📋 ธุรกรรมล่าสุด</div><div class="card">`;
+    if(txRes.length===0) html+=`<div class="loader">ยังไม่มีรายการ</div>`;
+    txRes.forEach(t=>{html+=renderTxItem(t);});
+    html+=`</div>`;
+    document.getElementById('home-content').innerHTML=html;
+  } catch { document.getElementById('home-content').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
 
+// ── STOCK ──
 async function loadStock() {
   try {
-    const [p, c] = await Promise.all([
-      fetch(API + '/products').then(r => r.json()),
-      fetch(API + '/categories').then(r => r.json()),
-    ]);
-    products = p; categories = c;
-    renderProducts(products);
-  } catch { document.getElementById('stock-list').innerHTML = `<div class="loader">❌ โหลดไม่ได้</div>`; }
+    const [p,c]=await Promise.all([fetch(API+'/products').then(r=>r.json()),fetch(API+'/categories').then(r=>r.json())]);
+    products=p; categories=c; renderProducts(products);
+  } catch { document.getElementById('stock-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
 function renderProducts(list) {
-  if (list.length === 0) {
-    document.getElementById('stock-list').innerHTML = `<div class="empty-state"><div class="emoji">📦</div><div>ไม่มีสินค้า</div></div>`;
-    return;
-  }
-  let bycat = {};
-  list.forEach(p => { const cat = p.category_name || 'อื่นๆ'; if (!bycat[cat]) bycat[cat] = []; bycat[cat].push(p); });
-  let html = '';
-  for (const [cat, items] of Object.entries(bycat)) {
-    html += `<div class="section-title">${cat}</div><div class="card">`;
-    items.forEach(p => {
-      const ratio = p.stock_min > 0 ? p.stock_current / p.stock_min : 1;
-      const cls = ratio <= 0 ? 'critical' : ratio <= 1 ? 'low' : '';
-      html += `<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
-        <div style="flex:1">
-          <div class="product-name">${escHtml(p.name)}</div>
-          <div class="product-cat">ขั้นต่ำ: ${p.stock_min} ${p.unit}</div>
-        </div>
-        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div>
-      </div>`;
+  if(list.length===0){document.getElementById('stock-list').innerHTML=`<div class="empty-state"><div class="emoji">📦</div><div>ไม่มีสินค้า</div></div>`;return;}
+  let bycat={};
+  list.forEach(p=>{const cat=p.category_name||'อื่นๆ';if(!bycat[cat])bycat[cat]=[];bycat[cat].push(p);});
+  let html='';
+  for(const [cat,items] of Object.entries(bycat)){
+    html+=`<div class="section-title">${cat}</div><div class="card">`;
+    items.forEach(p=>{
+      const ratio=p.stock_min>0?p.stock_current/p.stock_min:1;
+      const cls=ratio<=0?'critical':ratio<=1?'low':'';
+      html+=`<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
+        <div style="flex:1"><div class="product-name">${escHtml(p.name)}</div><div class="product-cat">ขั้นต่ำ: ${p.stock_min} ${p.unit}</div></div>
+        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div></div>`;
     });
-    html += `</div>`;
+    html+=`</div>`;
   }
-  document.getElementById('stock-list').innerHTML = html;
+  document.getElementById('stock-list').innerHTML=html;
 }
 function filterProducts() {
-  const q = document.getElementById('search-bar').value.toLowerCase();
-  renderProducts(products.filter(p => p.name.toLowerCase().includes(q)));
+  const q=document.getElementById('search-bar').value.toLowerCase();
+  renderProducts(products.filter(p=>p.name.toLowerCase().includes(q)));
 }
 
+// ── HISTORY ──
 async function loadHistory() {
   try {
-    const txs = await fetch(API + '/transactions?limit=100').then(r => r.json());
-    if (txs.length === 0) {
-      document.getElementById('history-list').innerHTML = `<div class="empty-state"><div class="emoji">📋</div><div>ยังไม่มีประวัติ</div></div>`;
-      return;
-    }
-    let html = `<div class="card">`;
-    txs.forEach(t => { html += renderTxItem(t); });
-    html += `</div>`;
-    document.getElementById('history-list').innerHTML = html;
-  } catch { document.getElementById('history-list').innerHTML = `<div class="loader">❌ โหลดไม่ได้</div>`; }
+    const txs=await fetch(API+'/transactions?limit=100').then(r=>r.json());
+    if(txs.length===0){document.getElementById('history-list').innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>ยังไม่มีประวัติ</div></div>`;return;}
+    let html=`<div class="card">`;
+    txs.forEach(t=>{html+=renderTxItem(t);});
+    html+=`</div>`;
+    document.getElementById('history-list').innerHTML=html;
+  } catch { document.getElementById('history-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
 function renderTxItem(t) {
-  const icons = { in: '➕', out: '➖', adjust: '🔄' };
-  const unit = t.unit || '';
-  const qtyLabel = t.type === 'in' ? `+${t.quantity} ${unit}` : t.type === 'out' ? `-${t.quantity} ${unit}` : `=${t.stock_after} ${unit}`;
-  const d = new Date(t.created_at);
-  const dateStr = isNaN(d) ? t.created_at : `${d.getDate()}/${d.getMonth()+1} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  const icons={in:'➕',out:'➖',adjust:'🔄'};
+  const unit=t.unit||'';
+  const qtyLabel=t.type==='in'?`+${t.quantity} ${unit}`:t.type==='out'?`-${t.quantity} ${unit}`:`=${t.stock_after} ${unit}`;
+  const d=new Date(t.created_at);
+  const dateStr=isNaN(d)?t.created_at:`${d.getDate()}/${d.getMonth()+1} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
   return `<div class="tx-item">
     <div class="tx-icon ${t.type}">${icons[t.type]}</div>
     <div class="tx-info">
-      <div class="tx-name">${escHtml(t.product_name || '')}</div>
-      <div class="tx-meta">${dateStr} · ${escHtml(t.user_name || 'ไม่ระบุ')}${t.reason ? ' · ' + escHtml(t.reason) : ''}</div>
+      <div class="tx-name">${escHtml(t.product_name||'')}</div>
+      <div class="tx-meta">${dateStr} · ${escHtml(t.user_name||'ไม่ระบุ')}${t.reason?' · '+escHtml(t.reason):''}</div>
     </div>
     <div class="tx-qty ${t.type}">${qtyLabel}</div>
   </div>`;
 }
 
-// ══ REPORT (แก้ไขส่วนนี้) ══
+// ── REPORT (รายเดือน) ──
+function buildMonthTabs() {
+  const now=new Date();
+  let tabs='';
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const val=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const label=`${THAI_MONTHS[d.getMonth()]} ${d.getFullYear()+543}`;
+    if(i===0) selectedMonth=val;
+    tabs+=`<button class="month-tab ${i===0?'active':''}" onclick="selectMonth('${val}',this)">${label}</button>`;
+  }
+  document.getElementById('month-tabs').innerHTML=tabs;
+}
+function selectMonth(val,el) {
+  selectedMonth=val;
+  document.querySelectorAll('.month-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  loadMonthlyReport(val);
+}
 async function loadReport() {
+  buildMonthTabs();
+  loadMonthlyReport(selectedMonth);
+}
+async function loadMonthlyReport(month) {
+  document.getElementById('report-content').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
-    const data = await fetch(API + '/report?days=30').then(r => r.json());
-    const totalIn     = data.reduce((s, p) => s + (p.total_in || 0), 0);
-    const totalOut    = data.reduce((s, p) => s + (p.total_out || 0), 0);
-    const totalInProd = data.reduce((s, p) => s + (p.in_products || 0), 0);
-    const totalOutProd= data.reduce((s, p) => s + (p.out_products || 0), 0);
+    const data=await fetch(`${API}/report/monthly?month=${month}`).then(r=>r.json());
+    const [year,mon]=month.split('-');
+    const thaiMonth=THAI_MONTHS_FULL[parseInt(mon)-1];
+    const thaiYear=parseInt(year)+543;
 
-    let html = `
-      <div class="stat-grid">
-        <div class="stat-card in-card">
-          <div class="stat-num">${totalIn} ครั้ง</div>
-          <div class="stat-label">รับเข้า 30 วัน</div>
-          <div class="stat-sub">${totalInProd} รายการสินค้า</div>
-        </div>
-        <div class="stat-card out-card">
-          <div class="stat-num">${totalOut} ครั้ง</div>
-          <div class="stat-label">เบิกออก 30 วัน</div>
-          <div class="stat-sub">${totalOutProd} รายการสินค้า</div>
-        </div>
+    // update print header
+    document.getElementById('print-title').textContent=`รายงานสต็อคประจำเดือน${thaiMonth} ${thaiYear}`;
+    document.getElementById('print-date').textContent=`พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`;
+
+    const totalIn=data.items.reduce((s,p)=>s+p.times_in,0);
+    const totalOut=data.items.reduce((s,p)=>s+p.times_out,0);
+    const maxOut=Math.max(...data.items.map(p=>p.times_out),1);
+
+    let html=`
+    <!-- ปุ่ม Export PDF -->
+    <button class="btn btn-gold btn-full no-print" style="margin-bottom:14px" onclick="exportPDF('${thaiMonth}','${thaiYear}')">
+      🖨️ Export PDF / พิมพ์รายงาน
+    </button>
+
+    <!-- สรุปภาพรวม -->
+    <div class="section-title">📊 สรุปเดือน${thaiMonth} ${thaiYear}</div>
+    <div class="stat-grid">
+      <div class="stat-card in-card">
+        <div class="stat-num">${totalIn}</div>
+        <div class="stat-label">รับเข้าทั้งเดือน (ครั้ง)</div>
       </div>
-      <div class="section-title">สรุปการเคลื่อนไหวสต็อค (30 วัน)</div>
-      <div class="card">`;
-    if (data.length === 0) html += `<div class="loader">ยังไม่มีข้อมูล</div>`;
-    data.forEach(p => {
-      html += `<div class="report-row">
-        <div class="report-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
-        <div class="report-nums">
-          <span class="in-num">+${p.total_in} ครั้ง</span>
-          <span class="out-num">-${p.total_out} ครั้ง</span>
-          <span style="color:var(--muted)">${p.stock_current}</span>
+      <div class="stat-card out-card">
+        <div class="stat-num">${totalOut}</div>
+        <div class="stat-label">เบิกออกทั้งเดือน (ครั้ง)</div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card gold-card">
+        <div class="stat-num">฿${data.totalValue.toLocaleString('th-TH',{maximumFractionDigits:0})}</div>
+        <div class="stat-label">มูลค่าสต็อคคงเหลือ</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">${data.items.length}</div>
+        <div class="stat-label">รายการสินค้าทั้งหมด</div>
+      </div>
+    </div>`;
+
+    // Top 3
+    if(data.top3.length>0){
+      html+=`<div class="section-title">🏆 ใช้มากที่สุด</div><div class="card">`;
+      data.top3.forEach((p,i)=>{
+        const rankClass=['r1','r2','r3'][i];
+        html+=`<div class="top3-item">
+          <div class="top3-rank ${rankClass}">${i+1}</div>
+          <div style="flex:1">
+            <div class="tx-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
+            <div class="bar-bg"><div class="bar-fill out" style="width:${Math.round(p.times_out/data.top3[0].times_out*100)}%"></div></div>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:var(--danger);font-weight:600">${p.times_out} ครั้ง</div>
+        </div>`;
+      });
+      html+=`</div>`;
+    }
+
+    // Daily chart
+    if(data.daily.length>0){
+      html+=`<div class="section-title">📈 แนวโน้มรายวัน</div><div class="card"><div class="chart-wrap">`;
+      html+=`<div class="chart-title">จำนวนธุรกรรมต่อวัน</div>`;
+      html+=renderDailyChart(data.daily,parseInt(mon),parseInt(year));
+      html+=`</div></div>`;
+    }
+
+    // รายสินค้า
+    html+=`<div class="section-title">📦 รายงานรายสินค้า</div><div class="card">`;
+    if(data.items.length===0) html+=`<div class="loader">ยังไม่มีข้อมูล</div>`;
+    data.items.forEach(p=>{
+      const pct=maxOut>0?Math.round(p.times_out/maxOut*100):0;
+      html+=`<div style="padding:10px 16px;border-bottom:1px solid #f0ebe0">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="report-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
+          <div style="font-size:.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace">คงเหลือ ${p.stock_current}</div>
         </div>
+        <div style="display:flex;gap:12px;margin-top:4px;font-size:.8rem;font-family:'IBM Plex Mono',monospace">
+          <span class="in-num">+${p.times_in} ครั้ง</span>
+          <span class="out-num">-${p.times_out} ครั้ง</span>
+          ${p.cost_per_unit>0?`<span style="color:var(--gold)">฿${(p.stock_current*p.cost_per_unit).toLocaleString('th-TH',{maximumFractionDigits:0})}</span>`:''}
+        </div>
+        ${p.times_out>0?`<div class="bar-bg" style="margin-top:5px"><div class="bar-fill out" style="width:${pct}%"></div></div>`:''}
       </div>`;
     });
-    html += `</div><div style="text-align:center;padding:12px 0;color:var(--muted);font-size:.8rem">📊 ข้อมูลสำรองใน Google Sheets อัตโนมัติ</div>`;
-    document.getElementById('report-content').innerHTML = html;
-  } catch { document.getElementById('report-content').innerHTML = `<div class="loader">❌ โหลดไม่ได้</div>`; }
+    html+=`</div>`;
+
+    document.getElementById('report-content').innerHTML=html;
+  } catch(e) {
+    document.getElementById('report-content').innerHTML=`<div class="loader">❌ โหลดไม่ได้: ${e.message}</div>`;
+  }
 }
 
-function openTx(id, name, unit) {
-  txProductId = id; txType = 'in';
-  document.getElementById('tx-modal-title').textContent = '📦 ' + name;
-  document.getElementById('unit-label').textContent = '(' + unit + ')';
-  document.getElementById('tx-qty').value = '';
-  document.getElementById('tx-reason').value = '';
-  setType('in');
-  document.getElementById('tx-modal').classList.add('open');
-}
-function closeTxModal() { document.getElementById('tx-modal').classList.remove('open'); }
-function setType(t) {
-  txType = t;
-  ['in','out','adjust'].forEach(x => document.getElementById('tab-' + x).classList.remove('active'));
-  document.getElementById('tab-' + t).classList.add('active');
-}
-async function submitTransaction() {
-  const qty = parseFloat(document.getElementById('tx-qty').value);
-  if (!qty || qty <= 0) { showToast('กรุณากรอกจำนวน', true); return; }
-  const reason = document.getElementById('tx-reason').value;
-  try {
-    const res = await fetch(API + '/transaction', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product_id: txProductId, type: txType, quantity: qty, reason, user_id: currentUser.id, user_name: currentUser.name })
-    });
-    const data = await res.json();
-    if (data.ok) { closeTxModal(); showToast('✅ บันทึกสำเร็จ'); loadStock(); loadHome(); }
-    else { showToast(data.error || 'เกิดข้อผิดพลาด', true); }
-  } catch { showToast('❌ เชื่อมต่อไม่ได้', true); }
+function renderDailyChart(daily,mon,year) {
+  const daysInMonth=new Date(year,mon,0).getDate();
+  const maxVal=Math.max(...daily.map(d=>d.d_in+d.d_out),1);
+  const W=320; const H=80; const pad=4;
+  const bw=Math.max(2,(W-pad*2)/daysInMonth-1);
+  let bars='';
+  for(let day=1;day<=daysInMonth;day++){
+    const d=daily.find(r=>parseInt(r.day)===day);
+    const inV=d?d.d_in:0; const outV=d?d.d_out:0;
+    const x=pad+(day-1)*((W-pad*2)/daysInMonth);
+    const hIn=inV>0?Math.max(3,Math.round(inV/maxVal*H)):0;
+    const hOut=outV>0?Math.max(3,Math.round(outV/maxVal*H)):0;
+    bars+=`<rect x="${x}" y="${H-hIn}" width="${bw*0.5}" height="${hIn}" fill="#2e7d52" rx="1"/>`;
+    bars+=`<rect x="${x+bw*0.5}" y="${H-hOut}" width="${bw*0.5}" height="${hOut}" fill="#c0392b" rx="1"/>`;
+  }
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H+16}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="${W}" height="${H}" rx="4" fill="#f4f0e8"/>
+    ${bars}
+    <text x="${pad}" y="${H+12}" font-size="9" fill="#7a8a7e">1</text>
+    <text x="${W/2-4}" y="${H+12}" font-size="9" fill="#7a8a7e">${Math.round(daysInMonth/2)}</text>
+    <text x="${W-16}" y="${H+12}" font-size="9" fill="#7a8a7e">${daysInMonth}</text>
+    <rect x="${W-60}" y="2" width="8" height="8" fill="#2e7d52" rx="1"/>
+    <text x="${W-50}" y="10" font-size="9" fill="#7a8a7e">รับเข้า</text>
+    <rect x="${W-60}" y="13" width="8" height="8" fill="#c0392b" rx="1"/>
+    <text x="${W-50}" y="21" font-size="9" fill="#7a8a7e">เบิกออก</text>
+  </svg>`;
 }
 
-function openAddModal() {
-  let opts = categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-  document.getElementById('new-cat').innerHTML = opts;
-  ['new-name','new-unit'].forEach(id => document.getElementById(id).value = '');
-  ['new-stock','new-min','new-cost'].forEach(id => document.getElementById(id).value = '0');
-  document.getElementById('add-modal').classList.add('open');
-}
-function closeAddModal() { document.getElementById('add-modal').classList.remove('open'); }
-async function saveProduct() {
-  const name = document.getElementById('new-name').value.trim();
-  const unit = document.getElementById('new-unit').value.trim();
-  if (!name || !unit) { showToast('กรุณากรอกชื่อและหน่วย', true); return; }
-  const body = {
-    name, unit,
-    category_id: parseInt(document.getElementById('new-cat').value),
-    stock_current: parseFloat(document.getElementById('new-stock').value) || 0,
-    stock_min: parseFloat(document.getElementById('new-min').value) || 0,
-    cost_per_unit: parseFloat(document.getElementById('new-cost').value) || 0,
-  };
-  try {
-    const res = await fetch(API + '/products', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (data.ok) { closeAddModal(); showToast('✅ เพิ่มสินค้าแล้ว'); loadStock(); }
-    else showToast(data.error || 'เกิดข้อผิดพลาด', true);
-  } catch { showToast('❌ เชื่อมต่อไม่ได้', true); }
+function exportPDF(thaiMonth, thaiYear) {
+  document.getElementById('print-title').textContent=`รายงานสต็อคประจำเดือน${thaiMonth} ${thaiYear}`;
+  document.getElementById('print-date').textContent=`พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`;
+  window.print();
 }
 
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function showToast(msg, isErr = false) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show' + (isErr ? ' error' : '');
-  setTimeout(() => t.className = 'toast', 2800);
+// ── TX MODAL ──
+function openTx(id,name,unit){txProductId=id;txType='in';document.getElementById('tx-modal-title').textContent='📦 '+name;document.getElementById('unit-label').textContent='('+unit+')';document.getElementById('tx-qty').value='';document.getElementById('tx-reason').value='';setType('in');document.getElementById('tx-modal').classList.add('open');}
+function closeTxModal(){document.getElementById('tx-modal').classList.remove('open');}
+function setType(t){txType=t;['in','out','adjust'].forEach(x=>document.getElementById('tab-'+x).classList.remove('active'));document.getElementById('tab-'+t).classList.add('active');}
+async function submitTransaction(){
+  const qty=parseFloat(document.getElementById('tx-qty').value);
+  if(!qty||qty<=0){showToast('กรุณากรอกจำนวน',true);return;}
+  const reason=document.getElementById('tx-reason').value;
+  try{
+    const res=await fetch(API+'/transaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({product_id:txProductId,type:txType,quantity:qty,reason,user_id:currentUser.id,user_name:currentUser.name})});
+    const data=await res.json();
+    if(data.ok){closeTxModal();showToast('✅ บันทึกสำเร็จ');loadStock();loadHome();}
+    else{showToast(data.error||'เกิดข้อผิดพลาด',true);}
+  }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
 }
-async function initApp() { await loadHome(); }
 
-document.getElementById('tx-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTxModal(); });
-document.getElementById('add-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddModal(); });
+// ── ADD PRODUCT ──
+function openAddModal(){let opts=categories.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');document.getElementById('new-cat').innerHTML=opts;['new-name','new-unit'].forEach(id=>document.getElementById(id).value='');['new-stock','new-min','new-cost'].forEach(id=>document.getElementById(id).value='0');document.getElementById('add-modal').classList.add('open');}
+function closeAddModal(){document.getElementById('add-modal').classList.remove('open');}
+async function saveProduct(){
+  const name=document.getElementById('new-name').value.trim();
+  const unit=document.getElementById('new-unit').value.trim();
+  if(!name||!unit){showToast('กรุณากรอกชื่อและหน่วย',true);return;}
+  const body={name,unit,category_id:parseInt(document.getElementById('new-cat').value),stock_current:parseFloat(document.getElementById('new-stock').value)||0,stock_min:parseFloat(document.getElementById('new-min').value)||0,cost_per_unit:parseFloat(document.getElementById('new-cost').value)||0};
+  try{
+    const res=await fetch(API+'/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(data.ok){closeAddModal();showToast('✅ เพิ่มสินค้าแล้ว');loadStock();}
+    else showToast(data.error||'เกิดข้อผิดพลาด',true);
+  }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');setTimeout(()=>t.className='toast',2800);}
+async function initApp(){await loadHome();}
+document.getElementById('tx-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
+document.getElementById('add-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAddModal();});
 </script>
 </body>
 </html>
