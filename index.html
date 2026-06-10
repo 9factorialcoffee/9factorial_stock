@@ -174,13 +174,14 @@ select.form-control { -webkit-appearance:none; }
 .staff-pin { font-size:.75rem; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
 .staff-actions { display:flex; gap:6px; }
 .btn-icon { background:none; border:1.5px solid #e0dbd0; border-radius:8px; padding:6px 10px; font-size:.85rem; cursor:pointer; transition:all .15s; }
-.btn-icon:active { background:var(--bg); }
 .btn-icon.danger { border-color:var(--danger-lt); color:var(--danger); }
 .btn-icon.danger:active { background:var(--danger-lt); }
-.pin-input-row { display:flex; gap:6px; justify-content:center; margin:12px 0; }
-.pin-input-box { width:44px; height:52px; border:2px solid #e0dbd0; border-radius:10px; font-size:1.4rem; font-family:'IBM Plex Mono',monospace; font-weight:700; text-align:center; background:var(--bg); color:var(--text); outline:none; transition:border-color .2s; }
+.pin-input-row { display:flex; gap:8px; justify-content:center; margin:10px 0; }
+.pin-input-box { width:52px; height:56px; border:2px solid #e0dbd0; border-radius:10px; font-size:1.5rem; font-family:'IBM Plex Mono',monospace; font-weight:700; text-align:center; background:var(--bg); color:var(--text); outline:none; transition:border-color .2s; -moz-appearance:textfield; }
+.pin-input-box::-webkit-outer-spin-button, .pin-input-box::-webkit-inner-spin-button { -webkit-appearance:none; }
 .pin-input-box:focus { border-color:var(--green); background:#fff; }
 
+/* ── PRINT / PDF ── */
 @media print {
   body { background:#fff !important; }
   .topbar, .bottom-nav, .add-product-btn, .toast,
@@ -357,10 +358,10 @@ select.form-control { -webkit-appearance:none; }
     <div class="form-group">
       <label class="form-label">PIN 4 หลัก *</label>
       <div class="pin-input-row">
-        <input class="pin-input-box" id="p1" type="number" min="0" max="9" maxlength="1" oninput="pinBoxMove(this,'p2')">
-        <input class="pin-input-box" id="p2" type="number" min="0" max="9" maxlength="1" oninput="pinBoxMove(this,'p3')">
-        <input class="pin-input-box" id="p3" type="number" min="0" max="9" maxlength="1" oninput="pinBoxMove(this,'p4')">
-        <input class="pin-input-box" id="p4" type="number" min="0" max="9" maxlength="1" oninput="pinBoxMove(this,null)">
+        <input class="pin-input-box" id="p1" type="number" min="0" max="9" oninput="pinBoxMove(this,'p2')">
+        <input class="pin-input-box" id="p2" type="number" min="0" max="9" oninput="pinBoxMove(this,'p3')">
+        <input class="pin-input-box" id="p3" type="number" min="0" max="9" oninput="pinBoxMove(this,'p4')">
+        <input class="pin-input-box" id="p4" type="number" min="0" max="9" oninput="pinBoxMove(this,null)">
       </div>
     </div>
     <div class="form-group" id="staff-role-group">
@@ -376,6 +377,8 @@ select.form-control { -webkit-appearance:none; }
     </div>
   </div>
 </div>
+
+<button class="add-product-btn" id="add-product-btn" style="display:none" onclick="openAddModal()">+</button>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -761,7 +764,7 @@ async function loadSettings() {
     const staffs = users.filter(u => u.role === 'staff');
 
     let html = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <div class="section-title" style="padding:0">👑 เจ้าของ</div>
     </div>
     <div class="card">`;
@@ -778,15 +781,14 @@ async function loadSettings() {
       </div>`;
     });
     html += `</div>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;margin-top:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;margin-top:8px">
       <div class="section-title" style="padding:0">👤 Staff (${staffs.length} คน)</div>
       <button class="btn btn-primary btn-sm" onclick="openAddStaff()">+ เพิ่ม Staff</button>
     </div>
     <div class="card">`;
 
     if (staffs.length === 0) {
-      html += `<div class="loader">ยังไม่มี Staff — กด + เพิ่มได้เลย</div>`;
+      html += `<div class="loader" style="padding:20px">ยังไม่มี Staff — กด + เพิ่มได้เลย</div>`;
     }
     staffs.forEach(u => {
       html += `<div class="staff-item">
@@ -809,9 +811,8 @@ async function loadSettings() {
 }
 
 function pinBoxMove(el, nextId) {
-  // กรอกได้แค่ 1 ตัว แล้ว focus ถัดไป
   if (el.value.length > 1) el.value = el.value.slice(-1);
-  if (el.value && nextId) document.getElementById(nextId).focus();
+  if (el.value !== '' && nextId) document.getElementById(nextId).focus();
 }
 
 function getPinFromBoxes() {
@@ -838,10 +839,9 @@ function openEditStaff(id, name, pin, role) {
   document.getElementById('staff-modal-title').textContent = '✏️ แก้ไข ' + name;
   document.getElementById('staff-name').value = name;
   document.getElementById('staff-role-group').style.display = role === 'owner' ? 'none' : 'block';
-  // ใส่ PIN เดิมลงในช่อง
-  const digits = pin.split('');
-  ['p1','p2','p3','p4'].forEach((id, i) => {
-    document.getElementById(id).value = digits[i] || '';
+  const digits = String(pin).split('');
+  ['p1','p2','p3','p4'].forEach((boxId, i) => {
+    document.getElementById(boxId).value = digits[i] || '';
   });
   document.getElementById('staff-modal').classList.add('open');
 }
@@ -856,13 +856,12 @@ async function saveStaff() {
   const role = document.getElementById('staff-role').value;
 
   if (!name) { showToast('กรุณากรอกชื่อ', true); return; }
-  if (pin.length !== 4 || isNaN(pin)) { showToast('PIN ต้องเป็นตัวเลข 4 หลัก', true); return; }
+  if (pin.length !== 4 || isNaN(parseInt(pin))) { showToast('PIN ต้องเป็นตัวเลข 4 หลัก', true); return; }
 
   const btn = document.getElementById('btn-save-staff');
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
-
   try {
-    let res, data;
+    let res;
     if (editingStaffId) {
       res = await fetch(`${API}/users/${editingStaffId}`, {
         method: 'PATCH',
@@ -876,7 +875,7 @@ async function saveStaff() {
         body: JSON.stringify({ name, pin, role })
       });
     }
-    data = await res.json();
+    const data = await res.json();
     if (data.ok) {
       closeStaffModal();
       showToast(editingStaffId ? '✅ แก้ไขแล้ว' : '✅ เพิ่ม Staff แล้ว');
@@ -898,8 +897,9 @@ async function deleteStaff(id, name) {
   } catch { showToast('❌ เชื่อมต่อไม่ได้', true); }
 }
 
-document.getElementById('staff-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeStaffModal(); });
-
+document.getElementById('tx-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
+document.getElementById('add-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAddModal();});
+document.getElementById('staff-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeStaffModal();});
 </script>
 </body>
 </html>
