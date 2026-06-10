@@ -251,7 +251,7 @@ select.form-control { -webkit-appearance:none; }
       <div class="alert-dot" id="low-badge" style="display:none">0</div>
     </button>
     <button class="nav-btn" id="nav-history" onclick="switchPage('history')"><span class="icon">📋</span>ประวัติ</button>
-    <button class="nav-btn" id="nav-report" onclick="switchPage('report')"><span class="icon">📊</span>รายงาน</button>
+    <button class="nav-btn" id="nav-report" onclick="switchPage('report')" style="display:none"><span class="icon">📊</span>รายงาน</button>
   </nav>
 </div>
 
@@ -351,7 +351,11 @@ async function doAuth() {
       document.getElementById('app').style.display='block';
       const chip=document.getElementById('user-chip');
       chip.textContent=(data.user.role==='owner'?'👑 ':'👤 ')+data.user.name;
-      if(data.user.role==='owner'){chip.classList.add('role-owner');document.getElementById('add-product-btn').style.display='flex';}
+      if (data.user.role === 'owner') {
+        chip.classList.add('role-owner');
+        document.getElementById('add-product-btn').style.display = 'flex';
+        document.getElementById('nav-report').style.display = 'flex';
+      }
       initApp();
     } else { document.getElementById('pin-error').textContent='❌ PIN ไม่ถูกต้อง'; pin=''; updateDots(); }
   } catch { document.getElementById('pin-error').textContent='❌ เชื่อมต่อไม่ได้'; pin=''; updateDots(); }
@@ -362,11 +366,13 @@ function logout() {
   document.getElementById('login-page').style.display='flex';
   updateDots(); document.getElementById('pin-error').textContent='';
   document.getElementById('user-chip').classList.remove('role-owner');
-  document.getElementById('add-product-btn').style.display='none';
+  document.getElementById('add-product-btn').style.display = 'none';
+  document.getElementById('nav-report').style.display = 'none';
 }
 
 // ── NAV ──
 function switchPage(name) {
+  if (name === 'report' && currentUser?.role !== 'owner') { name = 'home'; }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
