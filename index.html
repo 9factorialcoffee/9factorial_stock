@@ -76,7 +76,7 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 .product-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; align-items:center; gap:12px; transition:background .15s; }
 .product-item:last-child { border-bottom:none; }
 .product-item:active { background:#f8f5ef; }
-.btn-edit-product { background:none; border:none; font-size:1rem; cursor:pointer; padding:6px 8px; border-radius:8px; flex-shrink:0; transition:background .15s; }
+.btn-edit-product { background:none; border:none; font-size:1.05rem; cursor:pointer; padding:8px 10px; border-radius:8px; flex-shrink:0; transition:background .15s; }
 .btn-edit-product:active { background:var(--bg); }
 .product-name { font-size:.95rem; font-weight:500; flex:1; }
 .product-cat { font-size:.72rem; color:var(--muted); }
@@ -528,7 +528,7 @@ function renderProducts(list) {
   if(list.length===0){document.getElementById('stock-list').innerHTML=`<div class="empty-state"><div class="emoji">📦</div><div>ไม่มีสินค้า</div></div>`;return;}
   let bycat={};
   list.forEach(p=>{const cat=p.category_name||'อื่นๆ';if(!bycat[cat])bycat[cat]=[];bycat[cat].push(p);});
-  const isOwner = currentUser?.role === 'owner';
+  const isOwner = currentUser && currentUser.role === 'owner';
   let html='';
   for(const [cat,items] of Object.entries(bycat)){
     html+=`<div class="section-title">${cat}</div><div class="card">`;
@@ -793,18 +793,17 @@ async function saveProduct(){
   }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
 }
 
-// ── EDIT PRODUCT (เจ้าของ) ──
+// ── EDIT PRODUCT (เจ้าของเท่านั้น) ──
 let editingProductId = null;
 function openEditProduct(id) {
-  const p = products.find(x => x.id === id);
-  if (!p) return;
+  const p = (products || []).find(x => x.id === id);
+  if (!p) { showToast('ไม่พบสินค้า', true); return; }
   editingProductId = id;
-  document.getElementById('edit-name').value = p.name;
-  document.getElementById('edit-unit').value = p.unit;
-  document.getElementById('edit-min').value = p.stock_min;
+  document.getElementById('edit-name').value = p.name || '';
+  document.getElementById('edit-unit').value = p.unit || '';
+  document.getElementById('edit-min').value = p.stock_min || 0;
   document.getElementById('edit-cost').value = p.cost_per_unit || 0;
-  // เติม dropdown หมวดหมู่
-  const opts = categories.map(c => `<option value="${c.id}" ${c.id === p.category_id ? 'selected' : ''}>${c.name}</option>`).join('');
+  const opts = (categories || []).map(c => `<option value="${c.id}" ${c.id === p.category_id ? 'selected' : ''}>${c.name}</option>`).join('');
   document.getElementById('edit-cat').innerHTML = opts;
   document.getElementById('edit-modal').classList.add('open');
 }
@@ -813,10 +812,8 @@ async function saveEditProduct() {
   const name = document.getElementById('edit-name').value.trim();
   const unit = document.getElementById('edit-unit').value.trim();
   if (!name || !unit) { showToast('กรุณากรอกชื่อและหน่วย', true); return; }
-
   const btn = document.getElementById('btn-save-edit');
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
-
   const body = {
     name, unit,
     category_id: parseInt(document.getElementById('edit-cat').value),
@@ -836,8 +833,8 @@ async function saveEditProduct() {
   finally { btn.disabled = false; btn.textContent = '💾 บันทึก'; }
 }
 async function deleteProduct() {
-  const p = products.find(x => x.id === editingProductId);
-  if (!confirm(`ลบ "${p?.name}" ออกจากระบบ?\nประวัติธุรกรรมจะยังคงอยู่`)) return;
+  const p = (products || []).find(x => x.id === editingProductId);
+  if (!confirm(`ลบ "${p ? p.name : 'สินค้า'}" ออกจากระบบ?\nประวัติธุรกรรมจะยังคงอยู่`)) return;
   try {
     const res = await fetch(`${API}/products/${editingProductId}`, { method: 'DELETE' });
     const data = await res.json();
