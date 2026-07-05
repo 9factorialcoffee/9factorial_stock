@@ -76,6 +76,8 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 .product-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; align-items:center; gap:12px; transition:background .15s; }
 .product-item:last-child { border-bottom:none; }
 .product-item:active { background:#f8f5ef; }
+.btn-edit-product { background:none; border:none; font-size:1rem; cursor:pointer; padding:6px 8px; border-radius:8px; flex-shrink:0; transition:background .15s; }
+.btn-edit-product:active { background:var(--bg); }
 .product-name { font-size:.95rem; font-weight:500; flex:1; }
 .product-cat { font-size:.72rem; color:var(--muted); }
 .stock-badge { font-family:'IBM Plex Mono',monospace; font-size:.9rem; font-weight:600; padding:4px 10px; border-radius:20px; background:#e8f5ec; color:var(--green-lt); min-width:60px; text-align:right; }
@@ -347,6 +349,43 @@ select.form-control { -webkit-appearance:none; }
   </div>
 </div>
 
+<!-- EDIT PRODUCT MODAL -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✏️ แก้ไขสินค้า</div>
+    <div class="form-group">
+      <label class="form-label">ชื่อสินค้า *</label>
+      <input class="form-control" id="edit-name" type="text">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">หน่วย *</label>
+        <input class="form-control" id="edit-unit" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">หมวดหมู่</label>
+        <select class="form-control" id="edit-cat"></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label class="form-label">ขั้นต่ำ</label>
+        <input class="form-control" id="edit-min" type="number" min="0" step="0.1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ราคา/หน่วย</label>
+        <input class="form-control" id="edit-cost" type="number" min="0" step="0.01">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeEditModal()">ยกเลิก</button>
+      <button class="btn btn-primary" style="flex:2" id="btn-save-edit" onclick="saveEditProduct()">💾 บันทึก</button>
+    </div>
+    <button class="btn btn-full" style="margin-top:8px;background:var(--danger-lt);color:var(--danger)" onclick="deleteProduct()">🗑️ ลบสินค้านี้</button>
+  </div>
+</div>
+
 <!-- STAFF MODAL -->
 <div class="modal-overlay" id="staff-modal">
   <div class="modal">
@@ -489,15 +528,18 @@ function renderProducts(list) {
   if(list.length===0){document.getElementById('stock-list').innerHTML=`<div class="empty-state"><div class="emoji">📦</div><div>ไม่มีสินค้า</div></div>`;return;}
   let bycat={};
   list.forEach(p=>{const cat=p.category_name||'อื่นๆ';if(!bycat[cat])bycat[cat]=[];bycat[cat].push(p);});
+  const isOwner = currentUser?.role === 'owner';
   let html='';
   for(const [cat,items] of Object.entries(bycat)){
     html+=`<div class="section-title">${cat}</div><div class="card">`;
     items.forEach(p=>{
       const ratio=p.stock_min>0?p.stock_current/p.stock_min:1;
       const cls=ratio<=0?'critical':ratio<=1?'low':'';
+      const editBtn = isOwner ? `<button class="btn-edit-product" onclick="event.stopPropagation();openEditProduct(${p.id})">✏️</button>` : '';
       html+=`<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
         <div style="flex:1"><div class="product-name">${escHtml(p.name)}</div><div class="product-cat">ขั้นต่ำ: ${p.stock_min} ${p.unit}</div></div>
-        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div></div>`;
+        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div>
+        ${editBtn}</div>`;
     });
     html+=`</div>`;
   }
@@ -751,7 +793,58 @@ async function saveProduct(){
   }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
 }
 
-function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// ── EDIT PRODUCT (เจ้าของ) ──
+let editingProductId = null;
+function openEditProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editingProductId = id;
+  document.getElementById('edit-name').value = p.name;
+  document.getElementById('edit-unit').value = p.unit;
+  document.getElementById('edit-min').value = p.stock_min;
+  document.getElementById('edit-cost').value = p.cost_per_unit || 0;
+  // เติม dropdown หมวดหมู่
+  const opts = categories.map(c => `<option value="${c.id}" ${c.id === p.category_id ? 'selected' : ''}>${c.name}</option>`).join('');
+  document.getElementById('edit-cat').innerHTML = opts;
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
+async function saveEditProduct() {
+  const name = document.getElementById('edit-name').value.trim();
+  const unit = document.getElementById('edit-unit').value.trim();
+  if (!name || !unit) { showToast('กรุณากรอกชื่อและหน่วย', true); return; }
+
+  const btn = document.getElementById('btn-save-edit');
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+
+  const body = {
+    name, unit,
+    category_id: parseInt(document.getElementById('edit-cat').value),
+    stock_min: parseFloat(document.getElementById('edit-min').value) || 0,
+    cost_per_unit: parseFloat(document.getElementById('edit-cost').value) || 0,
+  };
+  try {
+    const res = await fetch(`${API}/products/${editingProductId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (data.ok) { closeEditModal(); showToast('✅ แก้ไขแล้ว'); loadStock(); }
+    else showToast(data.error || 'เกิดข้อผิดพลาด', true);
+  } catch { showToast('❌ เชื่อมต่อไม่ได้', true); }
+  finally { btn.disabled = false; btn.textContent = '💾 บันทึก'; }
+}
+async function deleteProduct() {
+  const p = products.find(x => x.id === editingProductId);
+  if (!confirm(`ลบ "${p?.name}" ออกจากระบบ?\nประวัติธุรกรรมจะยังคงอยู่`)) return;
+  try {
+    const res = await fetch(`${API}/products/${editingProductId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.ok) { closeEditModal(); showToast('🗑️ ลบแล้ว'); loadStock(); loadHome(); }
+    else showToast(data.error || 'เกิดข้อผิดพลาด', true);
+  } catch { showToast('❌ เชื่อมต่อไม่ได้', true); }
+}
 function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');setTimeout(()=>t.className='toast',2800);}
 async function initApp(){await loadHome();}
 // ── SETTINGS ──
@@ -900,6 +993,7 @@ async function deleteStaff(id, name) {
 
 document.getElementById('tx-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
 document.getElementById('add-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAddModal();});
+document.getElementById('edit-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeEditModal();});
 document.getElementById('staff-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeStaffModal();});
 </script>
 </body>
