@@ -487,7 +487,7 @@ async function loadHome() {
     </div>`;
     if(lowStock.length>0) {
       html+=`<div class="section-title">⚠️ สต็อคต่ำ — ต้องสั่งเพิ่ม</div><div class="card">`;
-      lowStock.slice(0,3).forEach(p=>{
+      lowStock.forEach(p=>{
         html+=`<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
           <div style="flex:1"><div class="product-name">${escHtml(p.name)}</div></div>
           <div class="stock-badge critical">${p.stock_current} ${p.unit}</div></div>`;
@@ -584,8 +584,7 @@ function renderTxItem(t) {
   const qtyLabel=t.type==='in'?`+${t.quantity} ${unit}`:t.type==='out'?`-${t.quantity} ${unit}`:`=${t.stock_after} ${unit}`;
   const d=new Date(t.created_at);
   const dateStr=isNaN(d)?t.created_at:`${d.getDate()}/${d.getMonth()+1} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
-  // แตะเพื่อเปิดหน้าเบิก/รับสินค้านั้นได้ (ถ้ามี product_id)
-  const clickAttr = t.product_id ? `onclick="openTx(${t.product_id},'${escHtml(t.product_name||'')}','${escHtml(unit)}')" style="cursor:pointer"` : '';
+  const clickAttr=t.product_id?`onclick="openTx(${t.product_id},'${escHtml(t.product_name||'')}','${escHtml(unit)}')" style="cursor:pointer"`:'';
   return `<div class="tx-item" ${clickAttr}>
     <div class="tx-icon ${t.type}">${icons[t.type]}</div>
     <div class="tx-info">
