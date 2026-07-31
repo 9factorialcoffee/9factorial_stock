@@ -727,21 +727,31 @@ async function loadMonthlyReport(month) {
       for(const [cat,items] of Object.entries(byCat)){
         html+=`<div style="font-size:.8rem;font-weight:600;color:var(--green);padding:8px 4px 4px">${escHtml(cat)}</div><div class="card">`;
         items.forEach(p=>{
-          const qtyIn=p.qty_in||0;
-          const qtyOut=p.qty_out||0;
-          const pct=maxQtyOut>0?Math.round(qtyOut/maxQtyOut*100):0;
-          const value=p.stock_current*(p.cost_per_unit||0);
-          html+=`<div style="padding:10px 16px;border-bottom:1px solid #f0ebe0">
-            <div style="display:flex;justify-content:space-between;align-items:center">
+          const base=p.base_balance||0;         // ยอดตั้งต้น (ยกมา หรือ ยอดปรับล่าสุด)
+          const qtyIn=p.qty_in_calc||0;          // รับ (หลังจุดตั้งต้น)
+          const qtyOut=p.qty_out_calc||0;        // เบิก (หลังจุดตั้งต้น)
+          const hasAdjust=p.has_adjust;
+          const calculated=base+qtyIn-qtyOut;    // สูตร: ตั้งต้น + รับ - เบิก
+          const actual=p.stock_current;
+          const mismatch=Math.abs(calculated-actual)>0.001;
+          const pct=maxQtyOut>0?Math.round((p.qty_out||0)/maxQtyOut*100):0;
+          const value=actual*(p.cost_per_unit||0);
+          // ป้ายตั้งต้น: ถ้ามีปรับสต็อค = "ปรับเป็น" / ปกติ = "ยกมา"
+          const baseLabel=hasAdjust?`🔄 ปรับเป็น ${base}`:`ยกมา ${base}`;
+          const baseColor=hasAdjust?'#b07d00':'var(--muted)';
+          html+=`<div style="padding:12px 16px;border-bottom:1px solid #f0ebe0">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
               <div class="report-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
-              <div style="font-size:.85rem;color:var(--green);font-weight:600;font-family:'IBM Plex Mono',monospace">คงเหลือ ${p.stock_current} ${p.unit}</div>
+              ${value>0?`<span style="color:var(--gold);font-size:.8rem;font-family:'IBM Plex Mono',monospace">฿${value.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>`:''}
             </div>
-            <div style="display:flex;gap:14px;margin-top:5px;font-size:.85rem;font-family:'IBM Plex Mono',monospace">
-              <span class="in-num">รับ +${qtyIn} ${p.unit}</span>
-              <span class="out-num">เบิก -${qtyOut} ${p.unit}</span>
-              ${value>0?`<span style="color:var(--gold)">฿${value.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>`:''}
+            <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:.82rem;font-family:'IBM Plex Mono',monospace">
+              <span style="color:${baseColor}">${baseLabel}</span>
+              <span class="in-num">รับ +${qtyIn}</span>
+              <span class="out-num">เบิก -${qtyOut}</span>
+              <span style="color:var(--green);font-weight:600">= คงเหลือ ${actual} ${p.unit}</span>
+              ${mismatch?`<span style="color:var(--danger);font-size:.75rem">⚠️ ควรเป็น ${calculated}</span>`:''}
             </div>
-            ${qtyOut>0?`<div class="bar-bg" style="margin-top:5px"><div class="bar-fill out" style="width:${pct}%"></div></div>`:''}
+            ${(p.qty_out||0)>0?`<div class="bar-bg" style="margin-top:6px"><div class="bar-fill out" style="width:${pct}%"></div></div>`:''}
           </div>`;
         });
         html+=`</div>`;
