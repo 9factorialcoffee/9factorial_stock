@@ -650,9 +650,9 @@ async function loadMonthlyReport(month) {
     document.getElementById('print-title').textContent=`รายงานสต็อคประจำเดือน${thaiMonth} ${thaiYear}`;
     document.getElementById('print-date').textContent=`พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH')}`;
 
-    const totalIn=data.items.reduce((s,p)=>s+p.times_in,0);
-    const totalOut=data.items.reduce((s,p)=>s+p.times_out,0);
-    const maxOut=Math.max(...data.items.map(p=>p.times_out),1);
+    const totalIn=data.items.reduce((s,p)=>s+(p.qty_in||0),0);
+    const totalOut=data.items.reduce((s,p)=>s+(p.qty_out||0),0);
+    const maxOut=Math.max(...data.items.map(p=>p.qty_out||0),1);
 
     let html=`
     <!-- ปุ่ม Export PDF -->
@@ -665,11 +665,11 @@ async function loadMonthlyReport(month) {
     <div class="stat-grid">
       <div class="stat-card in-card">
         <div class="stat-num">${totalIn}</div>
-        <div class="stat-label">รับเข้าทั้งเดือน (ครั้ง)</div>
+        <div class="stat-label">รับเข้าทั้งเดือน (หน่วย)</div>
       </div>
       <div class="stat-card out-card">
         <div class="stat-num">${totalOut}</div>
-        <div class="stat-label">เบิกออกทั้งเดือน (ครั้ง)</div>
+        <div class="stat-label">เบิกออกทั้งเดือน (หน่วย)</div>
       </div>
     </div>
     <div class="stat-grid">
@@ -683,18 +683,20 @@ async function loadMonthlyReport(month) {
       </div>
     </div>`;
 
-    // Top 3
-    if(data.top3.length>0){
+    // Top 3 — เรียงตามจำนวนหน่วยที่เบิกออก
+    const top3=[...data.items].sort((a,b)=>(b.qty_out||0)-(a.qty_out||0)).slice(0,3);
+    const top3Max=top3[0]&&top3[0].qty_out>0?top3[0].qty_out:1;
+    if(top3.length>0 && top3[0].qty_out>0){
       html+=`<div class="section-title">🏆 ใช้มากที่สุด</div><div class="card">`;
-      data.top3.forEach((p,i)=>{
+      top3.forEach((p,i)=>{
         const rankClass=['r1','r2','r3'][i];
         html+=`<div class="top3-item">
           <div class="top3-rank ${rankClass}">${i+1}</div>
           <div style="flex:1">
             <div class="tx-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
-            <div class="bar-bg"><div class="bar-fill out" style="width:${Math.round(p.times_out/data.top3[0].times_out*100)}%"></div></div>
+            <div class="bar-bg"><div class="bar-fill out" style="width:${Math.round((p.qty_out||0)/top3Max*100)}%"></div></div>
           </div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:var(--danger);font-weight:600">${p.times_out} ครั้ง</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:.85rem;color:var(--danger);font-weight:600">${p.qty_out||0} ${p.unit}</div>
         </div>`;
       });
       html+=`</div>`;
@@ -708,25 +710,43 @@ async function loadMonthlyReport(month) {
       html+=`</div></div>`;
     }
 
-    // รายสินค้า
-    html+=`<div class="section-title">📦 รายงานรายสินค้า</div><div class="card">`;
-    if(data.items.length===0) html+=`<div class="loader">ยังไม่มีข้อมูล</div>`;
-    data.items.forEach(p=>{
-      const pct=maxOut>0?Math.round(p.times_out/maxOut*100):0;
-      html+=`<div style="padding:10px 16px;border-bottom:1px solid #f0ebe0">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div class="report-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
-          <div style="font-size:.75rem;color:var(--muted);font-family:'IBM Plex Mono',monospace">คงเหลือ ${p.stock_current}</div>
-        </div>
-        <div style="display:flex;gap:12px;margin-top:4px;font-size:.8rem;font-family:'IBM Plex Mono',monospace">
-          <span class="in-num">+${p.times_in} ครั้ง</span>
-          <span class="out-num">-${p.times_out} ครั้ง</span>
-          ${p.cost_per_unit>0?`<span style="color:var(--gold)">฿${(p.stock_current*p.cost_per_unit).toLocaleString('th-TH',{maximumFractionDigits:0})}</span>`:''}
-        </div>
-        ${p.times_out>0?`<div class="bar-bg" style="margin-top:5px"><div class="bar-fill out" style="width:${pct}%"></div></div>`:''}
-      </div>`;
-    });
-    html+=`</div>`;
+    // รายสินค้า — แสดงจำนวนหน่วยจริง แยกตามหมวดหมู่
+    html+=`<div class="section-title">📦 รายงานรายสินค้า</div>`;
+    if(data.items.length===0){
+      html+=`<div class="card"><div class="loader">ยังไม่มีข้อมูล</div></div>`;
+    } else {
+      // จัดกลุ่มตามหมวดหมู่
+      const byCat={};
+      data.items.forEach(p=>{
+        const cat=p.category_name||'อื่นๆ';
+        if(!byCat[cat])byCat[cat]=[];
+        byCat[cat].push(p);
+      });
+      // หา max qty_out เพื่อทำ bar chart
+      const maxQtyOut=Math.max(...data.items.map(p=>p.qty_out||0),1);
+      for(const [cat,items] of Object.entries(byCat)){
+        html+=`<div style="font-size:.8rem;font-weight:600;color:var(--green);padding:8px 4px 4px">${escHtml(cat)}</div><div class="card">`;
+        items.forEach(p=>{
+          const qtyIn=p.qty_in||0;
+          const qtyOut=p.qty_out||0;
+          const pct=maxQtyOut>0?Math.round(qtyOut/maxQtyOut*100):0;
+          const value=p.stock_current*(p.cost_per_unit||0);
+          html+=`<div style="padding:10px 16px;border-bottom:1px solid #f0ebe0">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="report-name">${escHtml(p.name)} <span style="color:var(--muted);font-size:.75rem">${p.unit}</span></div>
+              <div style="font-size:.85rem;color:var(--green);font-weight:600;font-family:'IBM Plex Mono',monospace">คงเหลือ ${p.stock_current} ${p.unit}</div>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:5px;font-size:.85rem;font-family:'IBM Plex Mono',monospace">
+              <span class="in-num">รับ +${qtyIn} ${p.unit}</span>
+              <span class="out-num">เบิก -${qtyOut} ${p.unit}</span>
+              ${value>0?`<span style="color:var(--gold)">฿${value.toLocaleString('th-TH',{maximumFractionDigits:0})}</span>`:''}
+            </div>
+            ${qtyOut>0?`<div class="bar-bg" style="margin-top:5px"><div class="bar-fill out" style="width:${pct}%"></div></div>`:''}
+          </div>`;
+        });
+        html+=`</div>`;
+      }
+    }
 
     document.getElementById('report-content').innerHTML=html;
   } catch(e) {
