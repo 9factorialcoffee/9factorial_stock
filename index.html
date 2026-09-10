@@ -247,6 +247,10 @@ select.form-control { -webkit-appearance:none; }
     <div id="stock-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-history" class="page">
+    <select class="form-control" id="history-filter" onchange="loadHistory()"
+      style="background:var(--card);margin-bottom:12px;font-weight:500;color:var(--green);border-color:var(--green)">
+      <option value="">📋 ทุกสินค้า</option>
+    </select>
     <div id="history-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-report" class="page">
@@ -520,14 +524,38 @@ function renderProducts(list) {
     items.forEach(p=>{
       const ratio=p.stock_min>0?p.stock_current/p.stock_min:1;
       const cls=ratio<=0?'critical':ratio<=1?'low':'';
-      const eb=isOwner?`<button style="background:none;border:none;font-size:1rem;padding:6px 10px;cursor:pointer" onclick="event.stopPropagation();openEditProduct(${p.id})">✏️</button>`:'';
+      const eb=isOwner?`<button style="background:none;border:none;font-size:1rem;padding:6px 8px;cursor:pointer" onclick="event.stopPropagation();openEditProduct(${p.id})">✏️</button>`:'';
+      const canOut=p.stock_current>0;
+      const qb=`<button id="q-${p.id}" ${canOut?'':'disabled'} style="background:${canOut?'var(--danger-lt)':'#f0ebe0'};color:${canOut?'var(--danger)':'#bbb'};border:none;border-radius:8px;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:.85rem;padding:7px 11px;cursor:${canOut?'pointer':'default'}" onclick="event.stopPropagation();quickOut(${p.id})">−1</button>`;
       html+=`<div class="product-item" onclick="openTx(${p.id},'${escHtml(p.name)}','${p.unit}')">
         <div style="flex:1"><div class="product-name">${escHtml(p.name)}</div><div class="product-cat">ขั้นต่ำ: ${p.stock_min} ${p.unit}</div></div>
-        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div>${eb}</div>`;
+        <div class="stock-badge ${cls}">${p.stock_current} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div>${qb}${eb}</div>`;
     });
     html+=`</div>`;
   }
   document.getElementById('stock-list').innerHTML=html;
+}
+// เบิกด่วน 1 หน่วย
+async function quickOut(id){
+  const p=(products||[]).find(x=>x.id===id);
+  if(!p) return;
+  const btn=document.getElementById('q-'+id);
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  try{
+    const res=await fetch(API+'/transaction',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({product_id:id,type:'out',quantity:1,reason:'เบิกด่วน',user_id:currentUser.id,user_name:currentUser.name})});
+    const data=await res.json();
+    if(data.ok){
+      showToast(`➖ ${p.name} เหลือ ${data.stock_after} ${p.unit}`);
+      loadStock(); loadHome();
+    }else{
+      showToast(data.error||'เกิดข้อผิดพลาด',true);
+      if(btn){btn.disabled=false;btn.textContent='−1';}
+    }
+  }catch{
+    showToast('❌ เชื่อมต่อไม่ได้',true);
+    if(btn){btn.disabled=false;btn.textContent='−1';}
+  }
 }
 let editingProductId=null;
 function openEditProduct(id){
@@ -569,10 +597,32 @@ function filterProducts() {
 
 // ── HISTORY ──
 async function loadHistory() {
+  const sel=document.getElementById('history-filter');
+  // เติมรายชื่อสินค้าใน dropdown (ครั้งแรกเท่านั้น)
+  if(sel.options.length<=1 && (products||[]).length>0){
+    const keep=sel.value;
+    sel.innerHTML='<option value="">📋 ทุกสินค้า</option>'+
+      products.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+    sel.value=keep;
+  }
+  const pid=sel.value;
+  const url=pid?`${API}/transactions?product_id=${pid}&limit=100`:`${API}/transactions?limit=100`;
+  document.getElementById('history-list').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
-    const txs=await fetch(API+'/transactions?limit=100').then(r=>r.json());
+    const txs=await fetch(url).then(r=>r.json());
     if(txs.length===0){document.getElementById('history-list').innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>ยังไม่มีประวัติ</div></div>`;return;}
-    let html=`<div class="card">`;
+    let html='';
+    // ถ้ากรองสินค้าเดียว แสดงสรุปรับ/เบิกของสินค้านั้นด้านบน
+    if(pid){
+      const sumIn=txs.filter(t=>t.type==='in').reduce((s,t)=>s+t.quantity,0);
+      const sumOut=txs.filter(t=>t.type==='out').reduce((s,t)=>s+t.quantity,0);
+      const unit=txs[0].unit||'';
+      html+=`<div class="stat-grid">
+        <div class="stat-card in-card"><div class="stat-num">${sumIn}</div><div class="stat-label">รับเข้ารวม (${unit})</div></div>
+        <div class="stat-card out-card"><div class="stat-num">${sumOut}</div><div class="stat-label">เบิกออกรวม (${unit})</div></div>
+      </div>`;
+    }
+    html+=`<div class="card">`;
     txs.forEach(t=>{html+=renderTxItem(t);});
     html+=`</div>`;
     document.getElementById('history-list').innerHTML=html;
@@ -641,8 +691,14 @@ async function loadReport() {
 async function loadMonthlyReport(month) {
   document.getElementById('report-content').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
-    const data=await fetch(`${API}/report/monthly?month=${month}`).then(r=>r.json());
     const [year,mon]=month.split('-');
+    // เดือนก่อนหน้า สำหรับเปรียบเทียบ
+    const pmDate=new Date(parseInt(year),parseInt(mon)-2,1);
+    const prevMonth=`${pmDate.getFullYear()}-${String(pmDate.getMonth()+1).padStart(2,'0')}`;
+    const [data,prev]=await Promise.all([
+      fetch(`${API}/report/monthly?month=${month}`).then(r=>r.json()),
+      fetch(`${API}/report/monthly?month=${prevMonth}`).then(r=>r.json()).catch(()=>null),
+    ]);
     const thaiMonth=THAI_MONTHS_FULL[parseInt(mon)-1];
     const thaiYear=parseInt(year)+543;
 
@@ -682,6 +738,36 @@ async function loadMonthlyReport(month) {
         <div class="stat-label">รายการสินค้าทั้งหมด</div>
       </div>
     </div>`;
+
+    // เทียบกับเดือนก่อนหน้า
+    if(prev&&prev.items&&prev.items.length>0){
+      const pIn=prev.items.reduce((s,p)=>s+(p.qty_in||0),0);
+      const pOut=prev.items.reduce((s,p)=>s+(p.qty_out||0),0);
+      const pVal=prev.totalValue||0;
+      if(pIn>0||pOut>0){
+        const pThaiMonth=THAI_MONTHS[pmDate.getMonth()];
+        const row=(label,now,before,unit)=>{
+          const d=now-before;
+          const pct=before>0?Math.round(d/before*100):null;
+          const color=d>0?'var(--green-lt)':d<0?'var(--danger)':'var(--muted)';
+          const arrow=d>0?'▲':d<0?'▼':'—';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 16px;border-bottom:1px solid #f0ebe0">
+            <div style="font-size:.85rem">${label}</div>
+            <div style="display:flex;gap:10px;align-items:baseline;font-family:'IBM Plex Mono',monospace;font-size:.82rem">
+              <span style="color:var(--muted)">${before}${unit}</span>
+              <span style="color:var(--muted)">→</span>
+              <span style="font-weight:600">${now}${unit}</span>
+              <span style="color:${color};font-size:.78rem">${arrow} ${d>0?'+':''}${d}${pct!==null?` (${d>0?'+':''}${pct}%)`:''}</span>
+            </div>
+          </div>`;
+        };
+        html+=`<div class="section-title">📈 เทียบกับ${pThaiMonth} ${pmDate.getFullYear()+543}</div><div class="card">`;
+        html+=row('รับเข้า',totalIn,pIn,'');
+        html+=row('เบิกออก',totalOut,pOut,'');
+        html+=row('มูลค่าสต็อค',Math.round(data.totalValue),Math.round(pVal),'฿');
+        html+=`</div>`;
+      }
+    }
 
     // Top 3 — เรียงตามจำนวนหน่วยที่เบิกออก
     const top3=[...data.items].sort((a,b)=>(b.qty_out||0)-(a.qty_out||0)).slice(0,3);
