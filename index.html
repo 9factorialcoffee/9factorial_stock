@@ -84,6 +84,14 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 
 .search-bar { background:var(--card); border-radius:10px; border:1.5px solid #e0dbd0; padding:10px 14px; width:100%; font-family:'Kanit',sans-serif; font-size:.95rem; color:var(--text); margin-bottom:12px; outline:none; transition:border-color .2s; }
 .search-bar:focus { border-color:var(--green); }
+.cat-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.cat-chips { display:flex; gap:7px; overflow-x:auto; flex:1; padding-bottom:2px; scrollbar-width:none; }
+.cat-chips::-webkit-scrollbar { display:none; }
+.cat-chip { background:var(--card); border:1.5px solid #e0dbd0; border-radius:20px; padding:7px 15px; font-family:'Kanit',sans-serif; font-size:.85rem; color:var(--text); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all .15s; }
+.cat-chip.active { background:var(--green); border-color:var(--green); color:#fff; font-weight:500; }
+.cat-chip .cnt { font-size:.72rem; opacity:.6; margin-left:4px; font-family:'IBM Plex Mono',monospace; }
+.cat-search-btn { background:var(--card); border:1.5px solid #e0dbd0; border-radius:50%; width:38px; height:38px; font-size:1rem; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.cat-search-btn.active { background:var(--green); border-color:var(--green); }
 
 .btn { border:none; border-radius:10px; padding:11px 20px; font-family:'Kanit',sans-serif; font-size:.95rem; font-weight:500; cursor:pointer; transition:all .15s; display:inline-flex; align-items:center; gap:6px; }
 .btn-primary { background:var(--green); color:#fff; }
@@ -243,7 +251,11 @@ select.form-control { -webkit-appearance:none; }
     <div id="home-content"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-stock" class="page">
-    <input class="search-bar" id="search-bar" placeholder="🔍 ค้นหาสินค้า..." oninput="filterProducts()">
+    <div class="cat-bar">
+      <div class="cat-chips" id="cat-chips"></div>
+      <button class="cat-search-btn" id="cat-search-btn" onclick="toggleSearch()">🔍</button>
+    </div>
+    <input class="search-bar" id="search-bar" placeholder="ค้นหาสินค้า..." oninput="filterProducts()" style="display:none">
     <div id="stock-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-history" class="page">
@@ -507,11 +519,53 @@ async function loadHome() {
 }
 
 // ── STOCK ──
+let selectedCat='';   // '' = ทั้งหมด
+let searchOpen=false;
+
 async function loadStock() {
   try {
     const [p,c]=await Promise.all([fetch(API+'/products').then(r=>r.json()),fetch(API+'/categories').then(r=>r.json())]);
-    products=p; categories=c; renderProducts(products);
+    products=p; categories=c;
+    buildCatChips();
+    applyStockFilter();
   } catch { document.getElementById('stock-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
+}
+function buildCatChips(){
+  // นับจำนวนสินค้าในแต่ละหมวด
+  const cnt={};
+  (products||[]).forEach(p=>{const k=p.category_name||'อื่นๆ';cnt[k]=(cnt[k]||0)+1;});
+  // เรียงตามลำดับที่ API ส่งมา แล้วต่อท้ายด้วยหมวดที่ไม่มีใน categories
+  const order=(categories||[]).map(c=>c.name).filter(n=>cnt[n]);
+  Object.keys(cnt).forEach(n=>{if(!order.includes(n))order.push(n);});
+  // ถ้าหมวดที่เลือกไว้ไม่มีสินค้าแล้ว ให้กลับไปทั้งหมด
+  if(selectedCat&&!cnt[selectedCat]) selectedCat='';
+  let html=`<button class="cat-chip ${selectedCat===''?'active':''}" onclick="pickCat('')">ทั้งหมด<span class="cnt">${(products||[]).length}</span></button>`;
+  order.forEach(n=>{
+    html+=`<button class="cat-chip ${selectedCat===n?'active':''}" onclick="pickCat('${escAttr(n)}')">${escHtml(n)}<span class="cnt">${cnt[n]}</span></button>`;
+  });
+  document.getElementById('cat-chips').innerHTML=html;
+}
+function pickCat(name){
+  selectedCat=name;
+  buildCatChips();
+  applyStockFilter();
+}
+function toggleSearch(){
+  searchOpen=!searchOpen;
+  const box=document.getElementById('search-bar');
+  const btn=document.getElementById('cat-search-btn');
+  box.style.display=searchOpen?'block':'none';
+  btn.classList.toggle('active',searchOpen);
+  if(searchOpen){box.focus();}
+  else{box.value='';applyStockFilter();}
+}
+// กรองตามหมวด + คำค้น พร้อมกัน
+function applyStockFilter(){
+  const q=(document.getElementById('search-bar').value||'').toLowerCase();
+  let list=(products||[]);
+  if(selectedCat) list=list.filter(p=>(p.category_name||'อื่นๆ')===selectedCat);
+  if(q) list=list.filter(p=>p.name.toLowerCase().includes(q));
+  renderProducts(list);
 }
 function renderProducts(list) {
   if(list.length===0){document.getElementById('stock-list').innerHTML=`<div class="empty-state"><div class="emoji">📦</div><div>ไม่มีสินค้า</div></div>`;return;}
@@ -590,10 +644,7 @@ async function deleteProduct(){
     else showToast(data.error||'เกิดข้อผิดพลาด',true);
   }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
 }
-function filterProducts() {
-  const q=document.getElementById('search-bar').value.toLowerCase();
-  renderProducts(products.filter(p=>p.name.toLowerCase().includes(q)));
-}
+function filterProducts() { applyStockFilter(); }
 
 // ── HISTORY ──
 async function loadHistory() {
@@ -927,6 +978,7 @@ async function saveProduct(){
 }
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');setTimeout(()=>t.className='toast',2800);}
 async function initApp(){await loadHome();}
 // ── SETTINGS ──
