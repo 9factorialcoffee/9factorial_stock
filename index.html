@@ -34,8 +34,30 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 .btn-logout { background:none; border:none; color:rgba(255,255,255,.6); font-size:1.1rem; cursor:pointer; padding:4px; }
 
 .bottom-nav { position:fixed; bottom:0; left:0; right:0; background:var(--green); display:flex; border-top:1px solid rgba(255,255,255,.1); z-index:100; padding-bottom:env(safe-area-inset-bottom); }
-.nav-btn { flex:1; background:none; border:none; color:rgba(255,255,255,.5); padding:10px 4px 8px; font-size:.65rem; font-family:'Kanit',sans-serif; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; transition:color .2s; }
-.nav-btn .icon { font-size:1.35rem; }
+.nav-btn { flex:1; min-width:0; background:none; border:none; color:rgba(255,255,255,.5); padding:10px 2px 8px; font-size:.6rem; font-family:'Kanit',sans-serif; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; transition:color .2s; }
+.nav-btn .icon { font-size:1.25rem; }
+/* ── CUPS ── */
+.cup-card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden; }
+.cup-card-head { padding:14px 16px; display:flex; align-items:center; gap:10px; }
+.cup-card-head .t { flex:1; font-weight:600; font-size:1rem; color:var(--green); }
+.cup-done { background:#e8f5ec; color:var(--green-lt); border-radius:20px; padding:3px 10px; font-size:.72rem; font-weight:600; }
+.cup-body { padding:0 16px 16px; }
+.cup-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.cup-mini { padding:12px 16px; display:flex; align-items:center; gap:10px; cursor:pointer; }
+.cup-mini .lbl { flex:1; font-size:.85rem; color:var(--muted); }
+.cup-mini .val { font-family:'IBM Plex Mono',monospace; font-size:.85rem; font-weight:600; color:var(--green); }
+.cup-toggle { width:100%; background:var(--bg); border:1.5px dashed #d8d2c4; border-radius:10px; padding:10px; font-family:'Kanit',sans-serif; font-size:.85rem; color:var(--muted); cursor:pointer; margin-bottom:12px; }
+.cup-note { background:var(--warn-lt); color:#8a5000; border-radius:10px; padding:10px 12px; font-size:.82rem; margin-bottom:12px; }
+.cup-day { padding:11px 16px; border-bottom:1px solid #f0ebe0; }
+.cup-day:last-child { border-bottom:none; }
+.cup-day .d1 { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.cup-day .dt { font-weight:600; font-size:.88rem; flex:1; }
+.cup-line { font-family:'IBM Plex Mono',monospace; font-size:.78rem; display:flex; flex-wrap:wrap; gap:9px; }
+.st { border-radius:20px; padding:2px 9px; font-size:.68rem; font-weight:600; font-family:'Kanit',sans-serif; }
+.st.ok { background:#e8f5ec; color:var(--green-lt); }
+.st.watch { background:var(--warn-lt); color:var(--warn); }
+.st.alert, .st.error { background:var(--danger-lt); color:var(--danger); }
+.st.pending { background:#f0ebe0; color:var(--muted); }
 .nav-btn.active { color:var(--gold); }
 .nav-btn.active .icon { transform:scale(1.1); }
 
@@ -198,6 +220,7 @@ select.form-control { -webkit-appearance:none; }
   .page { display:block !important; padding:0 !important; }
   #page-report { display:block !important; }
   #page-settings { display:none !important; }
+  #page-cups { display:none !important; }
   .card { box-shadow:none !important; border:1px solid #ddd !important; }
   .print-header { display:block !important; }
   .stat-card { box-shadow:none !important; border:1px solid #ddd !important; }
@@ -282,6 +305,10 @@ select.form-control { -webkit-appearance:none; }
     <div id="report-content"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
 
+  <div id="page-cups" class="page">
+    <div id="cups-content"><div class="loader">⏳ กำลังโหลด...</div></div>
+  </div>
+
   <div id="page-settings" class="page">
     <div id="settings-content"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
@@ -291,6 +318,10 @@ select.form-control { -webkit-appearance:none; }
     <button class="nav-btn" id="nav-stock" onclick="switchPage('stock')" style="position:relative">
       <span class="icon">📦</span>สต็อค
       <div class="alert-dot" id="low-badge" style="display:none">0</div>
+    </button>
+    <button class="nav-btn" id="nav-cups" onclick="switchPage('cups')" style="position:relative">
+      <span class="icon">🥤</span>แก้ว
+      <div class="alert-dot" id="cup-badge" style="display:none">!</div>
     </button>
     <button class="nav-btn" id="nav-history" onclick="switchPage('history')"><span class="icon">📋</span>ประวัติ</button>
     <button class="nav-btn" id="nav-report" onclick="switchPage('report')" style="display:none"><span class="icon">📊</span>รายงาน</button>
@@ -481,6 +512,7 @@ function switchPage(name) {
   if(name==='history') loadHistory();
   if(name==='report') loadReport();
   if(name==='settings') loadSettings();
+  if(name==='cups') loadCups();
 }
 
 // ── HOME ──
@@ -746,9 +778,10 @@ async function loadMonthlyReport(month) {
     // เดือนก่อนหน้า สำหรับเปรียบเทียบ
     const pmDate=new Date(parseInt(year),parseInt(mon)-2,1);
     const prevMonth=`${pmDate.getFullYear()}-${String(pmDate.getMonth()+1).padStart(2,'0')}`;
-    const [data,prev]=await Promise.all([
+    const [data,prev,cups]=await Promise.all([
       fetch(`${API}/report/monthly?month=${month}`).then(r=>r.json()),
       fetch(`${API}/report/monthly?month=${prevMonth}`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/cups/report?month=${month}`).then(r=>r.json()).catch(()=>null),
     ]);
     const thaiMonth=THAI_MONTHS_FULL[parseInt(mon)-1];
     const thaiYear=parseInt(year)+543;
@@ -894,6 +927,7 @@ async function loadMonthlyReport(month) {
       }
     }
 
+    html+=renderCupAnalysis(cups);
     document.getElementById('report-content').innerHTML=html;
   } catch(e) {
     document.getElementById('report-content').innerHTML=`<div class="loader">❌ โหลดไม่ได้: ${e.message}</div>`;
@@ -980,14 +1014,280 @@ async function saveProduct(){
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
 function showToast(msg,isErr=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');setTimeout(()=>t.className='toast',2800);}
-async function initApp(){await loadHome();}
+async function initApp(){await loadHome();checkCupBadge();}
+// ── รายงานแก้ว (เจ้าของ) ──
+function renderCupAnalysis(c){
+  if(!c) return '';
+  if(!c.settings_ok) return `<div class="section-title">🥤 วิเคราะห์แก้ว</div>
+    <div class="card"><div class="loader" style="padding:20px">ยังไม่ได้ตั้งค่าแก้ว — ไปที่ ⚙️ ตั้งค่า</div></div>`;
+  if(!c.days||c.days.length===0) return `<div class="section-title">🥤 วิเคราะห์แก้ว</div>
+    <div class="card"><div class="loader" style="padding:20px">เดือนนี้ยังไม่มีการนับแก้ว</div></div>`;
+
+  const s=c.summary;
+  let html=`<div class="section-title">🥤 วิเคราะห์แก้ว</div>
+  <div class="stat-grid">
+    <div class="stat-card ${s.alerts>0?'danger':''}">
+      <div class="stat-num">${s.alerts}</div><div class="stat-label">วันที่ผิดปกติ</div>
+      <div class="stat-sub">จาก ${s.days_calculated} วันที่คำนวณได้</div>
+    </div>
+    <div class="stat-card ${Math.abs(s.diff_total)>20?'warn':''}">
+      <div class="stat-num">${s.diff_total>0?'+':''}${Math.round(s.diff_total)}</div>
+      <div class="stat-label">ส่วนต่างสะสม (ใบ)</div>
+      <div class="stat-sub">แก้วเย็น หลังหักฟรี/เสีย</div>
+    </div>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-num">${Math.round(s.free_total)}</div><div class="stat-label">แก้วฟรีรวม (ใบ)</div></div>
+    <div class="stat-card"><div class="stat-num">${Math.round(s.waste_total)}</div><div class="stat-label">แก้วทำเสียรวม (ใบ)</div></div>
+  </div>`;
+
+  if(s.takeaway_avg!==null) html+=`<div style="font-size:.8rem;color:var(--muted);padding:2px 4px 10px">สัดส่วน takeaway แก้วร้อนเฉลี่ย ${s.takeaway_avg}% — ค่านี้จะแม่นขึ้นเมื่อเก็บข้อมูลหลายสัปดาห์</div>`;
+
+  // สรุปรายคน
+  if(c.users&&c.users.length>0){
+    html+=`<div class="section-title">👤 สรุปรายคน (คนปิดร้าน)</div><div class="card">`;
+    c.users.forEach(u=>{
+      const bad=Math.abs(u.diff_avg)>3;
+      html+=`<div class="cup-day">
+        <div class="d1"><div class="dt">${escHtml(u.name)}</div>
+          <span style="font-size:.75rem;color:var(--muted)">${u.days} วัน</span></div>
+        <div class="cup-line">
+          <span style="color:${bad?'var(--danger)':'var(--muted)'}">ส่วนต่างเฉลี่ย ${u.diff_avg>0?'+':''}${u.diff_avg}/วัน</span>
+          <span style="color:var(--muted)">ทำเสียเฉลี่ย ${u.waste_avg}/วัน</span>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // รายวัน
+  const label={ok:'ปกติ',watch:'เฝ้าดู',alert:'ตรวจสอบ',error:'ผิดพลาด',pending:'รอวันถัดไป'};
+  html+=`<div class="section-title">📅 รายวัน</div><div class="card">`;
+  [...c.days].reverse().forEach(d=>{
+    const who=d.close_user_name||d.open_user_name||'';
+    html+=`<div class="cup-day">
+      <div class="d1">
+        <div class="dt">${thaiDateLabel(d.date)}</div>
+        ${who?`<span style="font-size:.72rem;color:var(--muted)">${escHtml(who)}</span>`:''}
+        <span class="st ${d.status}">${label[d.status]}</span>
+      </div>`;
+    if(d.status==='pending'){
+      html+=`<div class="cup-line"><span style="color:var(--muted)">ต้องมียอดนับเช้าของวันถัดไปก่อนถึงจะคำนวณได้</span></div>`;
+    }else{
+      html+=`<div class="cup-line">
+        <span class="out-num">เย็น ใช้ ${fmt1(d.used_cold)} · ขาย ${num0(d.sales_cold)}</span>
+        <span style="color:${Math.abs(d.diff_net_cold)>2?'var(--danger)':'var(--green-lt)'};font-weight:600">ต่าง ${d.diff_net_cold>0?'+':''}${fmt1(d.diff_net_cold)}</span>
+      </div>
+      <div class="cup-line" style="margin-top:3px;color:var(--muted)">
+        <span>ร้อน ใช้ ${fmt1(d.used_hot)} · ขาย ${num0(d.sales_hot)}</span>
+        ${d.takeaway_pct!==null?`<span>takeaway ${d.takeaway_pct}%</span>`:''}
+      </div>`;
+      if(d.free_hot+d.free_cold>0||d.waste_hot+d.waste_cold>0){
+        html+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)">
+          ${d.free_hot+d.free_cold>0?`<span>ฟรี ${fmt1(d.free_hot+d.free_cold)}</span>`:''}
+          ${d.waste_hot+d.waste_cold>0?`<span>เสีย ${fmt1(d.waste_hot+d.waste_cold)}</span>`:''}
+          ${d.waste_note?`<span style="font-family:'Kanit',sans-serif">${escHtml(d.waste_note)}</span>`:''}
+        </div>`;
+      }
+      if(d.issues&&d.issues.length) html+=`<div style="font-size:.75rem;color:var(--danger);margin-top:4px">⚠️ ${d.issues.map(escHtml).join(' · ')}</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+function fmt1(v){const n=parseFloat(v);if(isNaN(n))return '0';return Math.round(n*10)/10;}
+
+// ── CUPS: นับแก้วรายวัน ──
+let cupState=null;     // ข้อมูลวันนี้จาก API
+let cupExtraOpen=false; // กางส่วนฟรี/ทำเสียหรือยัง
+let cupEditOpen=false;  // แก้ไขยอดเช้าที่บันทึกไปแล้ว
+
+async function loadCups(){
+  document.getElementById('cups-content').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
+  try{
+    cupState=await fetch(API+'/cups/today').then(r=>r.json());
+    renderCups();
+    updateCupBadge();
+  }catch{ document.getElementById('cups-content').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
+}
+
+function cupHour(){
+  // ชั่วโมงปัจจุบันตามเวลา server (ไทย)
+  const t=cupState&&cupState.server_time?cupState.server_time:'';
+  return t?parseInt(t.substring(11,13)):new Date().getHours();
+}
+
+function renderCups(){
+  if(!cupState) return;
+  const s=cupState, r=s.row||{}, hr=cupHour();
+  const dateTH=thaiDateLabel(s.date);
+  let html=`<div class="section-title">🥤 นับแก้ว — ${dateTH}</div>`;
+
+  // ── รอบเช้า ──
+  if(!s.opened||cupEditOpen){
+    if(!s.opened&&hr>=15) html+=`<div class="cup-note">⚠️ ยังไม่ได้นับแก้วตอนเช้า ถ้านับไว้แล้วให้ใส่ย้อนหลัง ถ้าลืมนับให้ข้ามไป แล้วเริ่มใหม่พรุ่งนี้</div>`;
+    html+=`<div class="cup-card"><div class="cup-card-head"><div class="t">☀️ นับแก้วเปิดร้าน</div></div>
+      <div class="cup-body">
+        <div class="cup-row">
+          <div class="form-group" style="margin:0 0 12px">
+            <label class="form-label">แก้วร้อน (ใบ)</label>
+            <input class="form-control" id="cup-open-hot" type="number" min="0" step="1" inputmode="numeric" value="${s.opened?num0(r.open_hot):''}" placeholder="0">
+          </div>
+          <div class="form-group" style="margin:0 0 12px">
+            <label class="form-label">แก้วเย็น (ใบ)</label>
+            <input class="form-control" id="cup-open-cold" type="number" min="0" step="1" inputmode="numeric" value="${s.opened?num0(r.open_cold):''}" placeholder="0">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          ${cupEditOpen?`<button class="btn btn-ghost" style="flex:1" onclick="cupEditOpen=false;renderCups()">ยกเลิก</button>`:''}
+          <button class="btn btn-primary" style="flex:2" id="btn-cup-open" onclick="saveCupOpen()">💾 บันทึก</button>
+        </div>
+      </div></div>`;
+  } else {
+    html+=`<div class="cup-card"><div class="cup-mini" onclick="cupEditOpen=true;renderCups()">
+      <span style="font-size:1.1rem">☀️</span>
+      <div class="lbl">นับเช้าแล้ว · ${escHtml(r.open_user_name||'')} ${r.opened_at?r.opened_at.substring(11,16):''}</div>
+      <div class="val">ร้อน ${num0(r.open_hot)} · เย็น ${num0(r.open_cold)}</div>
+      <span style="color:var(--muted);font-size:.85rem">✏️</span>
+    </div></div>`;
+  }
+
+  // ── รอบปิดร้าน ──
+  if(s.opened&&!cupEditOpen){
+    if(s.closed&&!cupExtraOpen){
+      html+=`<div class="cup-card"><div class="cup-card-head">
+        <span style="font-size:1.1rem">🌙</span>
+        <div class="t">ปิดร้านแล้ว</div><div class="cup-done">✓ ครบ</div></div>
+        <div style="padding:0 16px 14px">
+          <div class="cup-line" style="margin-bottom:6px"><span>ขายร้อน ${num0(r.sales_hot)}</span><span>ขายเย็น ${num0(r.sales_cold)}</span></div>
+          <div style="font-size:.78rem;color:var(--muted)">${escHtml(r.close_user_name||'')} ${r.closed_at?r.closed_at.substring(11,16):''}</div>
+          <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px" onclick="cupExtraOpen=true;renderCups()">แก้ไข</button>
+        </div></div>`;
+    } else if(hr>=15||s.closed||cupExtraOpen){
+      html+=cupCloseForm(r);
+    } else {
+      html+=`<div class="cup-card"><div class="cup-card-head">
+        <span style="font-size:1.1rem">🌙</span>
+        <div class="t" style="color:var(--muted);font-weight:400;font-size:.9rem">ยอดขายกรอกได้ตอนบ่าย 3 เป็นต้นไป</div></div></div>`;
+      html+=`<button class="btn btn-ghost btn-full" onclick="cupExtraOpen=true;renderCups()">กรอกยอดขายเลย</button>`;
+    }
+  }
+  document.getElementById('cups-content').innerHTML=html;
+}
+
+function cupCloseForm(r){
+  const hasExtra=num(r.free_owner_hot)||num(r.free_owner_cold)||num(r.free_staff_hot)||num(r.free_staff_cold)||num(r.waste_hot)||num(r.waste_cold);
+  const show=hasExtra||cupExtraOpen;
+  const v=(x)=>r[x]!==undefined&&r[x]!==null?num0(r[x]):'';
+  return `<div class="cup-card"><div class="cup-card-head"><div class="t">🌙 ปิดร้าน</div></div>
+    <div class="cup-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">ยอดขายจากเครื่อง POS</div>
+      <div class="cup-row">
+        <div class="form-group" style="margin:0 0 12px">
+          <label class="form-label">ขายร้อน (แก้ว)</label>
+          <input class="form-control" id="cup-sales-hot" type="number" min="0" step="1" inputmode="numeric" value="${v('sales_hot')}" placeholder="0">
+        </div>
+        <div class="form-group" style="margin:0 0 12px">
+          <label class="form-label">ขายเย็น (แก้ว)</label>
+          <input class="form-control" id="cup-sales-cold" type="number" min="0" step="1" inputmode="numeric" value="${v('sales_cold')}" placeholder="0">
+        </div>
+      </div>
+      ${show?`
+      <div style="border-top:1px solid #f0ebe0;padding-top:12px">
+        ${cupExtraRow('แก้วฟรีเจ้าของ','fo',v('free_owner_hot'),v('free_owner_cold'))}
+        ${cupExtraRow('แก้วฟรีพนักงาน','fs',v('free_staff_hot'),v('free_staff_cold'))}
+        ${cupExtraRow('แก้วทำเสีย','wa',v('waste_hot'),v('waste_cold'))}
+        <div class="form-group">
+          <label class="form-label">เหตุผลที่ทำเสีย</label>
+          <input class="form-control" id="cup-waste-note" type="text" value="${escHtml(r.waste_note||'')}" placeholder="เช่น ทำหกตอนเร่ง">
+        </div>
+      </div>`:`
+      <button class="cup-toggle" onclick="cupExtraOpen=true;renderCups()">+ มีแก้วฟรีหรือทำเสีย</button>`}
+      <button class="btn btn-primary btn-full" id="btn-cup-close" onclick="saveCupClose()">💾 บันทึกปิดร้าน</button>
+    </div></div>`;
+}
+
+function cupExtraRow(label,key,hot,cold){
+  return `<div style="margin-bottom:10px">
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">${label}</div>
+    <div class="cup-row">
+      <input class="form-control" id="cup-${key}-hot" type="number" min="0" step="1" inputmode="numeric" value="${hot}" placeholder="ร้อน 0">
+      <input class="form-control" id="cup-${key}-cold" type="number" min="0" step="1" inputmode="numeric" value="${cold}" placeholder="เย็น 0">
+    </div>
+  </div>`;
+}
+
+async function saveCupOpen(){
+  const hot=parseFloat(document.getElementById('cup-open-hot').value);
+  const cold=parseFloat(document.getElementById('cup-open-cold').value);
+  if(isNaN(hot)||isNaN(cold)){showToast('กรอกให้ครบทั้งร้อนและเย็น',true);return;}
+  if(hot<0||cold<0){showToast('ใส่ตัวเลขติดลบไม่ได้',true);return;}
+  const btn=document.getElementById('btn-cup-open');
+  btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
+  try{
+    const res=await fetch(API+'/cups/open',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({hot,cold,user_id:currentUser.id,user_name:currentUser.name})});
+    const d=await res.json();
+    if(d.ok){cupEditOpen=false;showToast('✅ บันทึกยอดเช้าแล้ว');loadCups();}
+    else{showToast(d.error||'เกิดข้อผิดพลาด',true);btn.disabled=false;btn.textContent='💾 บันทึก';}
+  }catch{showToast('❌ เชื่อมต่อไม่ได้',true);btn.disabled=false;btn.textContent='💾 บันทึก';}
+}
+
+async function saveCupClose(){
+  const g=id=>{const e=document.getElementById(id);return e?parseFloat(e.value)||0:0;};
+  const sh=parseFloat(document.getElementById('cup-sales-hot').value);
+  const sc=parseFloat(document.getElementById('cup-sales-cold').value);
+  if(isNaN(sh)||isNaN(sc)){showToast('กรอกยอดขายให้ครบ',true);return;}
+  const noteEl=document.getElementById('cup-waste-note');
+  const btn=document.getElementById('btn-cup-close');
+  btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
+  try{
+    const res=await fetch(API+'/cups/close',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        sales_hot:sh,sales_cold:sc,
+        free_owner_hot:g('cup-fo-hot'),free_owner_cold:g('cup-fo-cold'),
+        free_staff_hot:g('cup-fs-hot'),free_staff_cold:g('cup-fs-cold'),
+        waste_hot:g('cup-wa-hot'),waste_cold:g('cup-wa-cold'),
+        waste_note:noteEl?noteEl.value:'',
+        user_id:currentUser.id,user_name:currentUser.name})});
+    const d=await res.json();
+    if(d.ok){cupExtraOpen=false;showToast('✅ บันทึกปิดร้านแล้ว');loadCups();}
+    else{showToast(d.error||'เกิดข้อผิดพลาด',true);btn.disabled=false;btn.textContent='💾 บันทึกปิดร้าน';}
+  }catch{showToast('❌ เชื่อมต่อไม่ได้',true);btn.disabled=false;btn.textContent='💾 บันทึกปิดร้าน';}
+}
+
+// จุดแดงเตือนบนแท็บ
+async function checkCupBadge(){
+  try{ cupState=await fetch(API+'/cups/today').then(r=>r.json()); updateCupBadge(); }catch{}
+}
+function updateCupBadge(){
+  const b=document.getElementById('cup-badge');
+  if(!b||!cupState) return;
+  const hr=cupHour();
+  const need=(!cupState.opened&&hr>=9)||(cupState.opened&&!cupState.closed&&hr>=17);
+  b.style.display=need?'flex':'none';
+}
+function thaiDateLabel(d){
+  if(!d) return '';
+  const [y,m,dd]=d.split('-');
+  return `${parseInt(dd)} ${THAI_MONTHS[parseInt(m)-1]} ${parseInt(y)+543}`;
+}
+function num0(v){const n=parseFloat(v);return isNaN(n)?0:n;}
+function num(v){const n=parseFloat(v);return isNaN(n)?0:n;}
+
 // ── SETTINGS ──
 let editingStaffId = null;
 
 async function loadSettings() {
   document.getElementById('settings-content').innerHTML = `<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
-    const users = await fetch(API + '/users').then(r => r.json());
+    const [users,cfg,prods] = await Promise.all([
+      fetch(API + '/users').then(r => r.json()),
+      fetch(API + '/settings').then(r => r.json()).catch(()=>({})),
+      fetch(API + '/products').then(r => r.json()).catch(()=>[]),
+    ]);
+    if(prods&&prods.length) products=prods;
     const owners = users.filter(u => u.role === 'owner');
     const staffs = users.filter(u => u.role === 'staff');
 
@@ -1032,10 +1332,55 @@ async function loadSettings() {
       </div>`;
     });
     html += `</div>`;
+
+    // ── ตั้งค่าแก้ว ──
+    const opts=(sel)=>(products||[]).map(p=>
+      `<option value="${p.id}" ${String(p.id)===String(sel)?'selected':''}>${escHtml(p.name)} (${escHtml(p.unit)})</option>`).join('');
+    html += `
+    <div class="section-title" style="margin-top:8px">🥤 ตั้งค่าแก้วสำหรับนับรายวัน</div>
+    <div class="card"><div style="padding:14px 16px">
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:10px">เลือกสินค้าที่เป็นแก้ว และระบุว่า 1 หน่วยในสต็อคเท่ากับกี่ใบ เช่น ถ้าเก็บเป็นแพค 50 ใบ ให้ใส่ 50</div>
+      <div class="form-group">
+        <label class="form-label">แก้วร้อน</label>
+        <select class="form-control" id="cfg-hot-id"><option value="">— ยังไม่เลือก —</option>${opts(cfg.cup_hot_product_id)}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">แก้วร้อน 1 หน่วย = กี่ใบ</label>
+        <input class="form-control" id="cfg-hot-per" type="number" min="1" step="1" inputmode="numeric" value="${cfg.cup_hot_per_unit||1}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">แก้วเย็น</label>
+        <select class="form-control" id="cfg-cold-id"><option value="">— ยังไม่เลือก —</option>${opts(cfg.cup_cold_product_id)}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">แก้วเย็น 1 หน่วย = กี่ใบ</label>
+        <input class="form-control" id="cfg-cold-per" type="number" min="1" step="1" inputmode="numeric" value="${cfg.cup_cold_per_unit||1}">
+      </div>
+      <button class="btn btn-primary btn-full" id="btn-save-cfg" onclick="saveCupSettings()">💾 บันทึกการตั้งค่า</button>
+    </div></div>`;
+
     document.getElementById('settings-content').innerHTML = html;
   } catch(e) {
     document.getElementById('settings-content').innerHTML = `<div class="loader">❌ โหลดไม่ได้</div>`;
   }
+}
+
+async function saveCupSettings(){
+  const hid=document.getElementById('cfg-hot-id').value;
+  const cid=document.getElementById('cfg-cold-id').value;
+  const hper=parseFloat(document.getElementById('cfg-hot-per').value)||1;
+  const cper=parseFloat(document.getElementById('cfg-cold-per').value)||1;
+  if(hid&&cid&&hid===cid){showToast('แก้วร้อนกับเย็นต้องคนละรายการ',true);return;}
+  const btn=document.getElementById('btn-save-cfg');
+  btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
+  try{
+    const res=await fetch(API+'/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cup_hot_product_id:hid,cup_hot_per_unit:hper,cup_cold_product_id:cid,cup_cold_per_unit:cper})});
+    const d=await res.json();
+    if(d.ok) showToast('✅ บันทึกการตั้งค่าแล้ว');
+    else showToast(d.error||'เกิดข้อผิดพลาด',true);
+  }catch{showToast('❌ เชื่อมต่อไม่ได้',true);}
+  finally{btn.disabled=false;btn.textContent='💾 บันทึกการตั้งค่า';}
 }
 
 function pinBoxMove(el, nextId) {
