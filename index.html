@@ -1041,6 +1041,16 @@ function renderCupAnalysis(c){
     <div class="stat-card"><div class="stat-num">${Math.round(s.waste_total)}</div><div class="stat-label">แก้วทำเสียรวม (ใบ)</div></div>
   </div>`;
 
+  if(s.edits_total>0){
+    html+=`<div class="stat-grid">
+      <div class="stat-card ${s.edits_after_close>0?'danger':''}">
+        <div class="stat-num">${s.edits_total}</div><div class="stat-label">การแก้ไขข้อมูล (ครั้ง)</div>
+        ${s.edits_after_close>0?`<div class="stat-sub" style="color:var(--danger)">${s.edits_after_close} วันแก้หลังปิดร้าน</div>`:''}
+      </div>
+      <div class="stat-card"><div class="stat-num">${s.days_recorded}</div><div class="stat-label">วันที่บันทึก</div></div>
+    </div>`;
+  }
+
   if(s.takeaway_avg!==null) html+=`<div style="font-size:.8rem;color:var(--muted);padding:2px 4px 10px">สัดส่วน takeaway แก้วร้อนเฉลี่ย ${s.takeaway_avg}% — ค่านี้จะแม่นขึ้นเมื่อเก็บข้อมูลหลายสัปดาห์</div>`;
 
   // สรุปรายคน
@@ -1071,30 +1081,77 @@ function renderCupAnalysis(c){
         ${who?`<span style="font-size:.72rem;color:var(--muted)">${escHtml(who)}</span>`:''}
         <span class="st ${d.status}">${label[d.status]}</span>
       </div>`;
-    if(d.status==='pending'){
-      html+=`<div class="cup-line"><span style="color:var(--muted)">ต้องมียอดนับเช้าของวันถัดไปก่อนถึงจะคำนวณได้</span></div>`;
-    }else{
-      html+=`<div class="cup-line">
-        <span class="out-num">เย็น ใช้ ${fmt1(d.used_cold)} · ขาย ${num0(d.sales_cold)}</span>
-        <span style="color:${Math.abs(d.diff_net_cold)>2?'var(--danger)':'var(--green-lt)'};font-weight:600">ต่าง ${d.diff_net_cold>0?'+':''}${fmt1(d.diff_net_cold)}</span>
-      </div>
-      <div class="cup-line" style="margin-top:3px;color:var(--muted)">
-        <span>ร้อน ใช้ ${fmt1(d.used_hot)} · ขาย ${num0(d.sales_hot)}</span>
-        ${d.takeaway_pct!==null?`<span>takeaway ${d.takeaway_pct}%</span>`:''}
-      </div>`;
-      if(d.free_hot+d.free_cold>0||d.waste_hot+d.waste_cold>0){
-        html+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)">
-          ${d.free_hot+d.free_cold>0?`<span>ฟรี ${fmt1(d.free_hot+d.free_cold)}</span>`:''}
-          ${d.waste_hot+d.waste_cold>0?`<span>เสีย ${fmt1(d.waste_hot+d.waste_cold)}</span>`:''}
-          ${d.waste_note?`<span style="font-family:'Kanit',sans-serif">${escHtml(d.waste_note)}</span>`:''}
-        </div>`;
-      }
-      if(d.issues&&d.issues.length) html+=`<div style="font-size:.75rem;color:var(--danger);margin-top:4px">⚠️ ${d.issues.map(escHtml).join(' · ')}</div>`;
-    }
+    html+=cupDayLines(d,'rp');
     html+=`</div>`;
   });
   html+=`</div>`;
   return html;
+}
+
+// รายละเอียดของหนึ่งวัน — ใช้ทั้งหน้ารายงานและการ์ดสรุปเมื่อวาน
+function cupDayLines(d,scope){
+  if(d.status==='pending'){
+    return `<div class="cup-line"><span style="color:var(--muted)">ต้องมียอดนับเช้าของวันถัดไปก่อนถึงจะคำนวณได้</span></div>`
+      + cupEditBlock(d,scope);
+  }
+  const big=Math.abs(d.diff_net_cold)>2;
+  let html=`<div class="cup-line">
+    <span class="out-num">เย็น ใช้ ${fmt1(d.used_cold)} · ควรใช้ ${fmt1(d.expected_cold)}</span>
+    <span style="color:${big?'var(--danger)':'var(--green-lt)'};font-weight:600">ต่าง ${d.diff_net_cold>0?'+':''}${fmt1(d.diff_net_cold)}</span>
+  </div>
+  <div class="cup-line" style="margin-top:3px;color:var(--muted)">
+    <span>ร้อน ใช้ ${fmt1(d.used_hot)} · ขาย ${num0(d.sales_hot)}</span>
+    ${(d.takeaway_pct!==null&&d.takeaway_pct>=0)?`<span>takeaway ${d.takeaway_pct}%</span>`:''}
+  </div>`;
+  const freeAll=num(d.free_hot)+num(d.free_cold), wasteAll=num(d.waste_hot)+num(d.waste_cold);
+  if(freeAll>0||wasteAll>0||d.waste_note){
+    html+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)">
+      ${freeAll>0?`<span>ฟรี ${fmt1(freeAll)}</span>`:''}
+      ${wasteAll>0?`<span>เสีย ${fmt1(wasteAll)}</span>`:''}
+      ${d.waste_note?`<span style="font-family:'Kanit',sans-serif">${escHtml(d.waste_note)}</span>`:''}
+    </div>`;
+  }
+  if(d.issues&&d.issues.length) html+=`<div style="font-size:.75rem;color:var(--danger);margin-top:5px;line-height:1.5;font-family:'Kanit',sans-serif">⚠️ ${d.issues.map(escHtml).join(' · ')}</div>`;
+  html+=cupEditBlock(d,scope);
+  return html;
+}
+
+// ── ประวัติการแก้ไข (เจ้าของเห็นเท่านั้น) ──
+const CUP_FIELD_TH={
+  open_hot:'นับเช้า ร้อน', open_cold:'นับเช้า เย็น',
+  sales_hot:'ขายร้อน', sales_cold:'ขายเย็น',
+  free_owner_hot:'ฟรีเจ้าของ ร้อน', free_owner_cold:'ฟรีเจ้าของ เย็น',
+  free_staff_hot:'ฟรีพนักงาน ร้อน', free_staff_cold:'ฟรีพนักงาน เย็น',
+  waste_hot:'ทำเสีย ร้อน', waste_cold:'ทำเสีย เย็น',
+  waste_note:'หมายเหตุ'
+};
+function cupEditBlock(d,scope){
+  if(!d.edits||d.edits.length===0) return '';
+  // scope กันไม่ให้ id ชนกันระหว่างหน้ารายงานกับแท็บแก้ว
+  const id='ed-'+(scope||'rp')+'-'+String(d.date).replace(/-/g,'');
+  const warn=d.edit_suspicious;
+  let rows='';
+  d.edits.forEach(e=>{
+    const lbl=CUP_FIELD_TH[e.field]||e.field;
+    const ov=(e.old_value===null||e.old_value==='')?'—':e.old_value;
+    const nv=(e.new_value===null||e.new_value==='')?'—':e.new_value;
+    rows+=`<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;padding:4px 0;border-bottom:1px solid #f4f0e8">
+      <span style="font-size:.76rem;min-width:98px">${lbl}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:.76rem;color:var(--muted)">${escHtml(ov)} → <b style="color:var(--text)">${escHtml(nv)}</b></span>
+      <span style="font-size:.7rem;color:var(--muted);margin-left:auto">${escHtml(e.user_name||'')} ${e.edited_at?e.edited_at.substring(5,16).replace('-','/'):''}</span>
+      ${e.after_close?`<span style="font-size:.68rem;color:var(--danger)">หลังปิดร้าน</span>`:''}
+    </div>`;
+  });
+  return `<div style="margin-top:6px">
+    <button onclick="toggleCupEdits('${id}')" style="background:${warn?'var(--danger-lt)':'#f0ebe0'};color:${warn?'var(--danger)':'var(--muted)'};border:none;border-radius:20px;padding:3px 11px;font-family:'Kanit',sans-serif;font-size:.7rem;font-weight:600;cursor:pointer">
+      ${warn?'⚠️ ':'✏️ '}แก้ไข ${d.edit_count} ครั้ง${warn?' · หลังปิดร้าน':''}
+    </button>
+    <div id="${id}" style="display:none;margin-top:6px;background:var(--bg);border-radius:10px;padding:8px 12px">${rows}</div>
+  </div>`;
+}
+function toggleCupEdits(id){
+  const el=document.getElementById(id);
+  if(el) el.style.display=el.style.display==='none'?'block':'none';
 }
 function fmt1(v){const n=parseFloat(v);if(isNaN(n))return '0';return Math.round(n*10)/10;}
 
@@ -1103,13 +1160,40 @@ let cupState=null;     // ข้อมูลวันนี้จาก API
 let cupExtraOpen=false; // กางส่วนฟรี/ทำเสียหรือยัง
 let cupEditOpen=false;  // แก้ไขยอดเช้าที่บันทึกไปแล้ว
 
+let cupRecent=null;    // ผลย้อนหลังไม่กี่วัน (เจ้าของเท่านั้น)
+
 async function loadCups(){
   document.getElementById('cups-content').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
+  const isOwner=currentUser&&currentUser.role==='owner';
   try{
-    cupState=await fetch(API+'/cups/today').then(r=>r.json());
+    const [today,recent]=await Promise.all([
+      fetch(API+'/cups/today').then(r=>r.json()),
+      isOwner?fetch(API+'/cups/recent?days=5').then(r=>r.json()).catch(()=>null):Promise.resolve(null),
+    ]);
+    cupState=today; cupRecent=recent;
     renderCups();
     updateCupBadge();
   }catch{ document.getElementById('cups-content').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
+}
+
+// การ์ดสรุปวันล่าสุดที่คำนวณได้ — เจ้าของเห็นเท่านั้น
+function cupRecentCard(){
+  if(!currentUser||currentUser.role!=='owner') return '';
+  if(!cupRecent) return '';
+  if(!cupRecent.settings_ok) return `<div class="cup-card"><div style="padding:14px 16px;font-size:.85rem;color:var(--muted)">ยังไม่ได้ตั้งค่าแก้ว — ไปที่ ⚙️ ตั้งค่า เพื่อให้ระบบคำนวณได้</div></div>`;
+  const done=(cupRecent.days||[]).filter(d=>d.diff_net_cold!==null);
+  if(done.length===0) return '';
+  const label={ok:'ปกติ',watch:'เฝ้าดู',alert:'ตรวจสอบ',error:'ผิดพลาด',pending:'รอวันถัดไป'};
+  const d=done[done.length-1];
+  return `<div class="section-title" style="margin-top:10px">📊 ผลล่าสุดที่คำนวณได้</div>
+  <div class="cup-card"><div class="cup-day" style="border-bottom:none">
+    <div class="d1">
+      <div class="dt">${thaiDateLabel(d.date)}</div>
+      ${d.close_user_name?`<span style="font-size:.72rem;color:var(--muted)">${escHtml(d.close_user_name)}</span>`:''}
+      <span class="st ${d.status}">${label[d.status]}</span>
+    </div>
+    ${cupDayLines(d,'cp')}
+  </div></div>`;
 }
 
 function cupHour(){
@@ -1129,6 +1213,10 @@ function renderCups(){
     if(!s.opened&&hr>=15) html+=`<div class="cup-note">⚠️ ยังไม่ได้นับแก้วตอนเช้า ถ้านับไว้แล้วให้ใส่ย้อนหลัง ถ้าลืมนับให้ข้ามไป แล้วเริ่มใหม่พรุ่งนี้</div>`;
     html+=`<div class="cup-card"><div class="cup-card-head"><div class="t">☀️ นับแก้วเปิดร้าน</div></div>
       <div class="cup-body">
+        <div style="background:#eef5f0;border-left:3px solid var(--green-lt);border-radius:8px;padding:9px 12px;font-size:.8rem;color:var(--green);margin-bottom:12px;line-height:1.5">
+          นับแก้วที่วางอยู่หน้าร้าน <b>ก่อน</b> หยิบแพคใหม่มาเติม<br>
+          ถ้าหยิบมาแล้ว ให้นับเฉพาะแก้วเดิม แล้วไปกดเบิกที่แท็บสต็อค
+        </div>
         <div class="cup-row">
           <div class="form-group" style="margin:0 0 12px">
             <label class="form-label">แก้วร้อน (ใบ)</label>
@@ -1161,7 +1249,8 @@ function renderCups(){
         <div class="t">ปิดร้านแล้ว</div><div class="cup-done">✓ ครบ</div></div>
         <div style="padding:0 16px 14px">
           <div class="cup-line" style="margin-bottom:6px"><span>ขายร้อน ${num0(r.sales_hot)}</span><span>ขายเย็น ${num0(r.sales_cold)}</span></div>
-          <div style="font-size:.78rem;color:var(--muted)">${escHtml(r.close_user_name||'')} ${r.closed_at?r.closed_at.substring(11,16):''}</div>
+          ${cupSummaryLines(r)}
+          <div style="font-size:.78rem;color:var(--muted);margin-top:6px">${escHtml(r.close_user_name||'')} ${r.closed_at?r.closed_at.substring(11,16):''}</div>
           <button class="btn btn-ghost btn-full btn-sm" style="margin-top:10px" onclick="cupExtraOpen=true;renderCups()">แก้ไข</button>
         </div></div>`;
     } else if(hr>=15||s.closed||cupExtraOpen){
@@ -1173,7 +1262,31 @@ function renderCups(){
       html+=`<button class="btn btn-ghost btn-full" onclick="cupExtraOpen=true;renderCups()">กรอกยอดขายเลย</button>`;
     }
   }
+
+  html+=cupRecentCard();
   document.getElementById('cups-content').innerHTML=html;
+}
+
+// สรุปฟรี/ทำเสีย ให้เห็นบนการ์ดที่หุบแล้ว ไม่ต้องกดแก้ไข
+function cupSummaryLines(r){
+  const pair=(h,c)=>{
+    const a=[];
+    if(num(h)>0) a.push(`ร้อน ${num0(h)}`);
+    if(num(c)>0) a.push(`เย็น ${num0(c)}`);
+    return a.join(' · ');
+  };
+  const rows=[
+    ['แก้วฟรีเจ้าของ', pair(r.free_owner_hot,r.free_owner_cold)],
+    ['แก้วฟรีพนักงาน', pair(r.free_staff_hot,r.free_staff_cold)],
+    ['แก้วทำเสีย',     pair(r.waste_hot,r.waste_cold)],
+  ].filter(x=>x[1]);
+  if(rows.length===0&&!r.waste_note) return `<div style="font-size:.78rem;color:var(--muted)">ไม่มีแก้วฟรีหรือทำเสีย</div>`;
+  let h='';
+  rows.forEach(([lbl,val])=>{
+    h+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)"><span style="font-family:'Kanit',sans-serif">${lbl}</span><span>${val}</span></div>`;
+  });
+  if(r.waste_note) h+=`<div style="font-size:.78rem;color:var(--muted);margin-top:3px">หมายเหตุ: ${escHtml(r.waste_note)}</div>`;
+  return h;
 }
 
 function cupCloseForm(r){
@@ -1195,9 +1308,9 @@ function cupCloseForm(r){
       </div>
       ${show?`
       <div style="border-top:1px solid #f0ebe0;padding-top:12px">
-        ${cupExtraRow('แก้วฟรีเจ้าของ','fo',v('free_owner_hot'),v('free_owner_cold'))}
-        ${cupExtraRow('แก้วฟรีพนักงาน','fs',v('free_staff_hot'),v('free_staff_cold'))}
-        ${cupExtraRow('แก้วทำเสีย','wa',v('waste_hot'),v('waste_cold'))}
+        ${cupExtraRow('แก้วฟรีเจ้าของ','fo',v('free_owner_hot'),v('free_owner_cold'),'อยู่ในยอด POS และใช้แก้วพลาสติก')}
+        ${cupExtraRow('แก้วฟรีพนักงาน','fs',v('free_staff_hot'),v('free_staff_cold'),'อยู่ในยอด POS แต่ไม่ใช้แก้วพลาสติก')}
+        ${cupExtraRow('แก้วทำเสีย','wa',v('waste_hot'),v('waste_cold'),'ไม่อยู่ในยอด POS แต่เสียแก้วไป')}
         <div class="form-group">
           <label class="form-label">เหตุผลที่ทำเสีย</label>
           <input class="form-control" id="cup-waste-note" type="text" value="${escHtml(r.waste_note||'')}" placeholder="เช่น ทำหกตอนเร่ง">
@@ -1208,9 +1321,9 @@ function cupCloseForm(r){
     </div></div>`;
 }
 
-function cupExtraRow(label,key,hot,cold){
+function cupExtraRow(label,key,hot,cold,hint){
   return `<div style="margin-bottom:10px">
-    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">${label}</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">${label}${hint?` <span style="font-size:.72rem;opacity:.75">— ${hint}</span>`:''}</div>
     <div class="cup-row">
       <input class="form-control" id="cup-${key}-hot" type="number" min="0" step="1" inputmode="numeric" value="${hot}" placeholder="ร้อน 0">
       <input class="form-control" id="cup-${key}-cold" type="number" min="0" step="1" inputmode="numeric" value="${cold}" placeholder="เย็น 0">
