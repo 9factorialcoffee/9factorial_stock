@@ -53,6 +53,15 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 .cup-day .d1 { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
 .cup-day .dt { font-weight:600; font-size:.88rem; flex:1; }
 .cup-line { font-family:'IBM Plex Mono',monospace; font-size:.78rem; display:flex; flex-wrap:wrap; gap:9px; }
+.cup-tbl { width:100%; border-collapse:collapse; margin-top:7px; font-family:'IBM Plex Mono',monospace; font-size:.76rem; }
+.cup-tbl td { padding:2px 0; }
+.cup-tbl td.lbl { font-family:'Kanit',sans-serif; color:var(--muted); font-size:.78rem; }
+.cup-tbl td.n { text-align:right; width:52px; }
+.cup-tbl tr.head td { color:var(--muted); font-size:.7rem; font-family:'Kanit',sans-serif; padding-bottom:1px; }
+.cup-tbl tr.sum td { border-top:1px solid #e8e3d8; font-weight:700; color:var(--text); padding-top:3px; }
+.cup-tbl tr.sum td.lbl { color:var(--text); font-weight:600; }
+.cup-tbl tr.gap td { padding-top:9px; }
+.cup-note { font-size:.74rem; color:var(--muted); margin-top:6px; line-height:1.6; font-family:'Kanit',sans-serif; }
 .st { border-radius:20px; padding:2px 9px; font-size:.68rem; font-weight:600; font-family:'Kanit',sans-serif; }
 .st.ok { background:#e8f5ec; color:var(--green-lt); }
 .st.watch { background:var(--warn-lt); color:var(--warn); }
@@ -1087,29 +1096,51 @@ function renderCupAnalysis(c){
 }
 
 // รายละเอียดของหนึ่งวัน — ใช้ทั้งหน้ารายงานและการ์ดสรุปเมื่อวาน
+// แสดงเป็นตารางไล่ที่มาของตัวเลข เจ้าของจะได้ตรวจย้อนกลับได้เองว่าส่วนต่างมาจากไหน
 function cupDayLines(d,scope){
+  const N=(v)=>fmt1(v);
+  const row=(lbl,h,c,cls)=>`<tr class="${cls||''}"><td class="lbl">${lbl}</td><td class="n">${N(h)}</td><td class="n">${N(c)}</td></tr>`;
+  const head=`<tr class="head"><td></td><td class="n">ร้อน</td><td class="n">เย็น</td></tr>`;
+
+  // ── ยังคำนวณไม่ได้ แต่ยอดที่กรอกไปแล้วต้องเห็น ──
   if(d.status==='pending'){
-    return `<div class="cup-line"><span style="color:var(--muted)">ต้องมียอดนับเช้าของวันถัดไปก่อนถึงจะคำนวณได้</span></div>`
-      + cupEditBlock(d,scope);
+    let h=`<table class="cup-tbl">${head}`
+      + row('นับเช้า', d.open_hot, d.open_cold)
+      + row('+ เบิกจากสต็อค', d.withdrawn_hot, d.withdrawn_cold);
+    if(d.sales_hot!==null&&d.sales_hot!==undefined){
+      h+=row('ขาย (POS)', d.sales_hot, d.sales_cold, 'gap');
+    }
+    h+=`</table><div class="cup-note">ยังคำนวณส่วนต่างไม่ได้ — ต้องมียอดนับเช้าของวันถัดไปก่อน</div>`;
+    return h+cupEditBlock(d,scope);
   }
+
   const big=Math.abs(d.diff_net_cold)>2;
-  let html=`<div class="cup-line">
-    <span class="out-num">เย็น ใช้ ${fmt1(d.used_cold)} · ควรใช้ ${fmt1(d.expected_cold)}</span>
-    <span style="color:${big?'var(--danger)':'var(--green-lt)'};font-weight:600">ต่าง ${d.diff_net_cold>0?'+':''}${fmt1(d.diff_net_cold)}</span>
-  </div>
-  <div class="cup-line" style="margin-top:3px;color:var(--muted)">
-    <span>ร้อน ใช้ ${fmt1(d.used_hot)} · ขาย ${num0(d.sales_hot)}</span>
-    ${(d.takeaway_pct!==null&&d.takeaway_pct>=0)?`<span>takeaway ${d.takeaway_pct}%</span>`:''}
-  </div>`;
-  const freeAll=num(d.free_hot)+num(d.free_cold), wasteAll=num(d.waste_hot)+num(d.waste_cold);
-  if(freeAll>0||wasteAll>0||d.waste_note){
-    html+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)">
-      ${freeAll>0?`<span>ฟรี ${fmt1(freeAll)}</span>`:''}
-      ${wasteAll>0?`<span>เสีย ${fmt1(wasteAll)}</span>`:''}
-      ${d.waste_note?`<span style="font-family:'Kanit',sans-serif">${escHtml(d.waste_note)}</span>`:''}
-    </div>`;
-  }
-  if(d.issues&&d.issues.length) html+=`<div style="font-size:.75rem;color:var(--danger);margin-top:5px;line-height:1.5;font-family:'Kanit',sans-serif">⚠️ ${d.issues.map(escHtml).join(' · ')}</div>`;
+  const diffHot=num(d.used_hot)-num(d.expected_hot)-num(d.waste_hot);
+  const sign=(v)=>(v>0?'+':'')+N(v);
+
+  let html=`<table class="cup-tbl">${head}`
+    + row('นับเช้าวันนี้', d.open_hot, d.open_cold)
+    + row('+ เบิกจากสต็อค', d.withdrawn_hot, d.withdrawn_cold)
+    + row('− นับเช้าวันถัดไป', d.next_open_hot, d.next_open_cold)
+    + row('= ใช้จริง', d.used_hot, d.used_cold, 'sum')
+    + row('ขาย (POS)', d.sales_hot, d.sales_cold, 'gap')
+    + row('− ฟรีพนักงาน', d.free_staff_hot, d.free_staff_cold)
+    + row('= ควรใช้', d.expected_hot, d.expected_cold, 'sum')
+    + row('− ทำเสีย', d.waste_hot, d.waste_cold)
+    + `<tr class="sum"><td class="lbl">= ส่วนต่าง</td>
+        <td class="n" style="color:var(--muted)">${sign(diffHot)}</td>
+        <td class="n" style="color:${big?'var(--danger)':'var(--green-lt)'}">${sign(d.diff_net_cold)}</td></tr>
+    </table>`;
+
+  // ── หมายเหตุ: สิ่งที่อยู่ในยอดขายแล้ว ไม่ได้อยู่ในสมการ ──
+  const notes=[];
+  const fo=num(d.free_owner_hot)+num(d.free_owner_cold);
+  if(fo>0) notes.push(`ฟรีเจ้าของ ร้อน ${N(d.free_owner_hot)} · เย็น ${N(d.free_owner_cold)} (อยู่ในยอดขายแล้ว และใช้แก้ว จึงไม่ต้องหัก)`);
+  if(d.takeaway_pct!==null&&d.takeaway_pct>=0) notes.push(`takeaway แก้วร้อน ${d.takeaway_pct}% — ส่วนที่เหลือเสิร์ฟแก้วทานร้าน ส่วนต่างแก้วร้อนจึงไม่ใช่ตัวชี้วัด`);
+  if(d.waste_note) notes.push('หมายเหตุ: '+escHtml(d.waste_note));
+  if(notes.length) html+=`<div class="cup-note">${notes.join('<br>')}</div>`;
+
+  if(d.issues&&d.issues.length) html+=`<div style="font-size:.75rem;color:var(--danger);margin-top:6px;line-height:1.5;font-family:'Kanit',sans-serif">⚠️ ${d.issues.map(escHtml).join(' · ')}</div>`;
   html+=cupEditBlock(d,scope);
   return html;
 }
