@@ -52,6 +52,11 @@ body { font-family:'Kanit',sans-serif; background:var(--bg); color:var(--text); 
 .cup-day:last-child { border-bottom:none; }
 .cup-day .d1 { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
 .cup-day .dt { font-weight:600; font-size:.88rem; flex:1; }
+.cup-day .d1.tap { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.cup-chev { color:var(--muted); font-size:.8rem; transition:transform .18s; display:inline-block; width:14px; text-align:center; }
+.cup-brief { font-family:'IBM Plex Mono',monospace; font-size:.78rem; display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+.cup-brief .warn1 { font-family:'Kanit',sans-serif; font-size:.74rem; color:var(--danger); flex-basis:100%; }
+.cup-expand { background:none; border:none; font-family:'Kanit',sans-serif; font-size:.78rem; color:var(--green-lt); cursor:pointer; padding:0 4px; }
 .cup-line { font-family:'IBM Plex Mono',monospace; font-size:.78rem; display:flex; flex-wrap:wrap; gap:9px; }
 .cup-tbl { width:100%; border-collapse:collapse; margin-top:7px; font-family:'IBM Plex Mono',monospace; font-size:.76rem; }
 .cup-tbl td { padding:2px 0; }
@@ -1079,20 +1084,84 @@ function renderCupAnalysis(c){
 
   // รายวัน
   const label={ok:'ปกติ',watch:'เฝ้าดู',alert:'ตรวจสอบ',error:'ผิดพลาด',pending:'รอวันถัดไป'};
-  html+=`<div class="section-title">📅 รายวัน</div><div class="card">`;
-  [...c.days].reverse().forEach(d=>{
+  const ordered=[...c.days].reverse();
+  cupDayDates=ordered.map(d=>d.date);
+  // คงสถานะย่อ/ขยายของวันที่ยังอยู่ในเดือนที่เลือก
+  cupOpenDays=new Set([...cupOpenDays].filter(dt=>cupDayDates.includes(dt)));
+  html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>📅 รายวัน</span>
+    <button class="cup-expand" id="cup-expand-all" onclick="toggleAllCupDays()">${cupOpenDays.size<cupDayDates.length?'ขยายทั้งหมด':'ย่อทั้งหมด'}</button>
+  </div><div class="card">`;
+  ordered.forEach(d=>{
     const who=d.close_user_name||d.open_user_name||'';
+    const id=cupDayId(d.date);
+    const open=cupOpenDays.has(d.date);
     html+=`<div class="cup-day">
-      <div class="d1">
+      <div class="d1 tap" onclick="toggleCupDay('${d.date}')">
         <div class="dt">${thaiDateLabel(d.date)}</div>
         ${who?`<span style="font-size:.72rem;color:var(--muted)">${escHtml(who)}</span>`:''}
         <span class="st ${d.status}">${label[d.status]}</span>
-      </div>`;
-    html+=cupDayLines(d,'rp');
-    html+=`</div>`;
+        <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
+      </div>
+      <div class="cup-brief" id="${id}-b" style="display:${open?'none':'flex'}" onclick="toggleCupDay('${d.date}')">${cupBriefLine(d)}</div>
+      <div class="cup-full" id="${id}" style="display:${open?'block':'none'}">${cupDayLines(d,'rp')}</div>
+    </div>`;
   });
   html+=`</div>`;
   return html;
+}
+
+// ── ย่อ/ขยายรายวัน ─────────────────────────────────────────
+// เดือนเต็มมี 30 วัน ถ้ากางตารางทุกวันจะเลื่อนหายาก จึงย่อไว้ก่อน
+let cupOpenDays=new Set();
+let cupDayDates=[];
+function cupDayId(date){ return 'cd-'+String(date).replace(/-/g,''); }
+function toggleCupDay(date){
+  // ใช้ cupOpenDays เป็นตัวตั้ง ไม่อ่านจาก style เพราะอ่านพลาดแล้วจะสลับกลับด้าน
+  const open=!cupOpenDays.has(date);
+  if(open) cupOpenDays.add(date); else cupOpenDays.delete(date);
+  setCupDay(cupDayId(date),open);
+  syncExpandBtn();
+}
+function setCupDay(id,open){
+  const full=document.getElementById(id);
+  const brief=document.getElementById(id+'-b');
+  const chev=document.getElementById(id+'-c');
+  if(full) full.style.display=open?'block':'none';
+  if(brief) brief.style.display=open?'none':'flex';
+  if(chev) chev.style.transform=open?'rotate(180deg)':'';
+}
+function toggleAllCupDays(){
+  const openAll=cupOpenDays.size<cupDayDates.length;
+  cupDayDates.forEach(dt=>setCupDay(cupDayId(dt),openAll));
+  cupOpenDays=openAll?new Set(cupDayDates):new Set();
+  syncExpandBtn();
+}
+function syncExpandBtn(){
+  const b=document.getElementById('cup-expand-all');
+  if(b) b.textContent=(cupOpenDays.size<cupDayDates.length)?'ขยายทั้งหมด':'ย่อทั้งหมด';
+}
+
+// บรรทัดเดียวตอนย่อ — เห็นส่วนต่างพอให้รู้ว่าวันไหนต้องกดดู
+function cupBriefLine(d){
+  const sign=(v)=>(num(v)>0?'+':'')+fmt1(v);
+  if(d.status==='pending'){
+    return `<span style="color:var(--muted)">รอยอดนับเช้าวันถัดไป</span>
+      <span style="color:var(--muted)">เช้า ร้อน ${fmt1(d.open_hot)} · เย็น ${fmt1(d.open_cold)}</span>`;
+  }
+  const big=Math.abs(num(d.diff_net_cold))>2;
+  const diffHot=num(d.used_hot)-num(d.expected_hot)-num(d.waste_hot);
+  let h=`<span>ต่าง เย็น <b style="color:${big?'var(--danger)':'var(--green-lt)'}">${sign(d.diff_net_cold)}</b></span>
+    <span style="color:var(--muted)">ร้อน ${sign(diffHot)}</span>`;
+  const fr=num(d.free_hot)+num(d.free_cold), ws=num(d.waste_hot)+num(d.waste_cold);
+  if(fr>0) h+=`<span style="color:var(--muted)">ฟรี ${fmt1(fr)}</span>`;
+  if(ws>0) h+=`<span style="color:var(--muted)">เสีย ${fmt1(ws)}</span>`;
+  // วันที่มีปัญหา ต้องบอกสั้นๆ ตั้งแต่ตอนย่อ ว่าควรกดดูเพราะอะไร
+  if(d.issues&&d.issues.length){
+    const first=String(d.issues[0]).split(' — ')[0];
+    h+=`<span class="warn1">⚠️ ${escHtml(first)}${d.issues.length>1?` (+${d.issues.length-1})`:''}</span>`;
+  }
+  return h;
 }
 
 // รายละเอียดของหนึ่งวัน — ใช้ทั้งหน้ารายงานและการ์ดสรุปเมื่อวาน
