@@ -159,7 +159,7 @@ select.form-control { -webkit-appearance:none; }
 .tx-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; gap:10px; }
 .hist-sel { background:var(--card); margin-bottom:8px; font-weight:500; color:var(--green); border-color:var(--green); }
 .hist-sel:last-of-type { margin-bottom:12px; }
-.mon-head { display:flex; align-items:baseline; gap:8px; padding:4px 4px 7px; margin-top:16px; border-bottom:2px solid var(--green); margin-bottom:10px; }
+.mon-head { display:flex; align-items:baseline; gap:8px; padding:4px 4px 7px; margin-top:16px; border-bottom:2px solid var(--green); margin-bottom:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .mon-head:first-of-type { margin-top:4px; }
 .mon-head .mh-name { font-weight:700; font-size:.95rem; color:var(--green); flex:1; }
 .mon-head .mh-sum { font-family:'IBM Plex Mono',monospace; font-size:.74rem; color:var(--muted); }
@@ -768,7 +768,10 @@ async function loadHistory() {
       months[mIdx[mk]].days.push(d);
     });
     txDayKeys=days.map(d=>d.key);
-    // เลือกสินค้าเจาะจง = ตั้งใจมาไล่ดูของตัวนั้น กางให้หมดเลย ไม่ต้องกดทีละวัน
+    txMonthKeys=months.map(m=>m.key);
+    // เดือนล่าสุดเปิด เดือนเก่าพับไว้ — ย้อนหลังเป็นปีจะได้ไม่ต้องเลื่อนผ่านทุกเดือน
+    txOpenMonths=new Set(txMonthKeys.slice(0,1));
+    // เลือกสินค้าเจาะจง = ตั้งใจมาไล่ดูของตัวนั้น กางทุกวันในเดือนที่เปิดอยู่
     // ไม่ได้เลือก = รายการเยอะจากหลายสินค้า กางแค่วันล่าสุด
     txOpenDays=pid ? new Set(txDayKeys) : new Set(txDayKeys.slice(0,1));
     const today=todayKey();
@@ -790,10 +793,14 @@ async function loadHistory() {
         : [['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
             .map(([lb,ty])=>{const n2=all.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
             .filter(Boolean).join(' · ')+' รายการ';
-      html+=`<div class="mon-head">
+      const mOpen=txOpenMonths.has(mo.key);
+      const mId=txMonthId(mo.key);
+      html+=`<div class="mon-head" onclick="toggleTxMonth('${mo.key}')">
         <span class="mh-name">${monthLabelTH(mo.key)}</span>
-        <span class="mh-sum">${sum}</span>
-      </div>`;
+        <span class="mh-sum">${mo.days.length} วัน · ${sum}</span>
+        <span class="cup-chev" id="${mId}-c" style="${mOpen?'transform:rotate(180deg)':''}">▾</span>
+      </div>
+      <div class="tx-month" id="${mId}" style="display:${mOpen?'block':'none'}">`;
 
       mo.days.forEach(g=>{
         const open=txOpenDays.has(g.key);
@@ -813,12 +820,15 @@ async function loadHistory() {
           </div>
         </div>`;
       });
+      html+=`</div>`;
     });
     document.getElementById('history-list').innerHTML=html;
     syncTxExpandBtn();
   } catch { document.getElementById('history-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
 // ── ประวัติ: จัดกลุ่มรายวัน + ย่อ/ขยาย ───────────────────
+let txOpenMonths=new Set();
+let txMonthKeys=[];
 let txOpenDays=new Set();
 let txDayKeys=[];
 function txDayKey(t){
@@ -858,15 +868,34 @@ function setTxDay(key,open){
   if(box) box.style.display=open?'block':'none';
   if(chev) chev.style.transform=open?'rotate(180deg)':'';
 }
+function txMonthId(k){ return 'txm-'+String(k).replace(/-/g,''); }
+// ย่อ/ขยายทีละเดือน — ปีนึง 12 เดือน ถ้ากดทีเดียวกางหมดจะเลื่อนหายาก
+function toggleTxMonth(key){
+  const open=!txOpenMonths.has(key);
+  if(open) txOpenMonths.add(key); else txOpenMonths.delete(key);
+  setTxMonth(key,open);
+  syncTxExpandBtn();
+}
+function setTxMonth(key,open){
+  const id=txMonthId(key);
+  const box=document.getElementById(id);
+  const chev=document.getElementById(id+'-c');
+  if(box) box.style.display=open?'block':'none';
+  if(chev) chev.style.transform=open?'rotate(180deg)':'';
+}
 function toggleAllTxDays(){
-  const openAll=txOpenDays.size<txDayKeys.length;
+  const openAll=txOpenMonths.size<txMonthKeys.length||txOpenDays.size<txDayKeys.length;
+  txMonthKeys.forEach(k=>setTxMonth(k,openAll));
   txDayKeys.forEach(k=>setTxDay(k,openAll));
+  txOpenMonths=openAll?new Set(txMonthKeys):new Set();
   txOpenDays=openAll?new Set(txDayKeys):new Set();
   syncTxExpandBtn();
 }
 function syncTxExpandBtn(){
   const b=document.getElementById('tx-expand-all');
-  if(b) b.textContent=(txOpenDays.size<txDayKeys.length)?'ขยายทั้งหมด':'ย่อทั้งหมด';
+  if(!b) return;
+  const allOpen=txOpenMonths.size===txMonthKeys.length&&txOpenDays.size===txDayKeys.length;
+  b.textContent=allOpen?'ย่อทั้งหมด':'ขยายทั้งหมด';
 }
 
 function renderTxItem(t) {
