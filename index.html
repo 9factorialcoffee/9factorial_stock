@@ -159,6 +159,10 @@ select.form-control { -webkit-appearance:none; }
 .tx-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; gap:10px; }
 .hist-sel { background:var(--card); margin-bottom:8px; font-weight:500; color:var(--green); border-color:var(--green); }
 .hist-sel:last-of-type { margin-bottom:12px; }
+.mon-head { display:flex; align-items:baseline; gap:8px; padding:4px 4px 7px; margin-top:16px; border-bottom:2px solid var(--green); margin-bottom:10px; }
+.mon-head:first-of-type { margin-top:4px; }
+.mon-head .mh-name { font-weight:700; font-size:.95rem; color:var(--green); flex:1; }
+.mon-head .mh-sum { font-family:'IBM Plex Mono',monospace; font-size:.74rem; color:var(--muted); }
 .day-head { display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f4ed; border-bottom:1px solid #ebe5d8; cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .day-head .dh-date { font-weight:600; font-size:.86rem; flex:1; }
 .day-head .dh-sum { font-family:'IBM Plex Mono',monospace; font-size:.74rem; color:var(--muted); }
@@ -750,43 +754,65 @@ async function loadHistory() {
         <div class="stat-card out-card"><div class="stat-num">${sumOut}</div><div class="stat-label">เบิกออกรวม (${unit})</div></div>
       </div>`;
     }
-    // ── จัดกลุ่มตามวัน — เดิมวันที่ซ้ำทุกบรรทัดแต่ไม่รู้ว่าวันเปลี่ยนตรงไหน ──
-    const groups=[];
-    const idx={};
+    // ── จัดกลุ่ม เดือน → วัน ──
+    const days=[]; const dIdx={};
     txs.forEach(t=>{
       const k=txDayKey(t);
-      if(idx[k]===undefined){ idx[k]=groups.length; groups.push({key:k,items:[]}); }
-      groups[idx[k]].items.push(t);
+      if(dIdx[k]===undefined){ dIdx[k]=days.length; days.push({key:k,items:[]}); }
+      days[dIdx[k]].items.push(t);
     });
-    txDayKeys=groups.map(g=>g.key);
-    // วันล่าสุดกางไว้ ที่เหลือย่อ — เปิดมาต้องเห็นของวันนี้ทันที
-    txOpenDays=new Set(groups.length?[groups[0].key]:[]);
+    const months=[]; const mIdx={};
+    days.forEach(d=>{
+      const mk=d.key.substring(0,7);
+      if(mIdx[mk]===undefined){ mIdx[mk]=months.length; months.push({key:mk,days:[]}); }
+      months[mIdx[mk]].days.push(d);
+    });
+    txDayKeys=days.map(d=>d.key);
+    // เลือกสินค้าเจาะจง = ตั้งใจมาไล่ดูของตัวนั้น กางให้หมดเลย ไม่ต้องกดทีละวัน
+    // ไม่ได้เลือก = รายการเยอะจากหลายสินค้า กางแค่วันล่าสุด
+    txOpenDays=pid ? new Set(txDayKeys) : new Set(txDayKeys.slice(0,1));
     const today=todayKey();
+    const unit=pid&&txs[0]?(txs[0].unit||''):'';
+
     html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>📋 ${groups.length} วัน · ${txs.length} รายการ</span>
-      <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()">ขยายทั้งหมด</button>
+      <span>📋 ${days.length} วัน · ${txs.length} รายการ</span>
+      <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()"></button>
     </div>`;
-    groups.forEach(g=>{
-      const open=txOpenDays.has(g.key);
-      const id='tx-'+g.key.replace(/-/g,'');
-      const nIn=g.items.filter(t=>t.type==='in').length;
-      const nOut=g.items.filter(t=>t.type==='out').length;
-      const nAdj=g.items.filter(t=>t.type==='adjust').length;
-      const parts=[];
-      if(nIn) parts.push(`รับ ${nIn}`);
-      if(nOut) parts.push(`เบิก ${nOut}`);
-      if(nAdj) parts.push(`ปรับ ${nAdj}`);
-      html+=`<div class="card" style="margin-bottom:10px">
-        <div class="day-head" onclick="toggleTxDay('${g.key}')">
-          <div class="dh-date">${thaiDateLabel(g.key)||escHtml(g.key)}</div>
-          ${g.key===today?`<span class="dh-today">วันนี้</span>`:''}
-          <span class="dh-sum">${parts.join(' · ')}</span>
-          <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
-        </div>
-        <div class="tx-day" id="${id}" style="display:${open?'block':'none'}">
-          ${g.items.map(renderTxItem).join('')}
-        </div>
+
+    months.forEach(mo=>{
+      const all=mo.days.flatMap(d=>d.items);
+      // เลือกสินค้าเดียว = หน่วยเดียวกันหมด รวมจำนวนได้
+      // หลายสินค้า = หน่วยคนละอย่าง บวกกันไม่มีความหมาย นับเป็นรายการแทน
+      const sum = pid
+        ? [['รับ','in'],['เบิก','out']]
+            .map(([lb,ty])=>{const q=all.filter(t=>t.type===ty).reduce((s2,t)=>s2+num(t.quantity),0);return q?`${lb} ${fmt1(q)}`:'';})
+            .filter(Boolean).join(' · ')+(unit?` ${unit}`:'')
+        : [['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
+            .map(([lb,ty])=>{const n2=all.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
+            .filter(Boolean).join(' · ')+' รายการ';
+      html+=`<div class="mon-head">
+        <span class="mh-name">${monthLabelTH(mo.key)}</span>
+        <span class="mh-sum">${sum}</span>
       </div>`;
+
+      mo.days.forEach(g=>{
+        const open=txOpenDays.has(g.key);
+        const id='tx-'+g.key.replace(/-/g,'');
+        const parts=[['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
+          .map(([lb,ty])=>{const n2=g.items.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
+          .filter(Boolean);
+        html+=`<div class="card" style="margin-bottom:10px">
+          <div class="day-head" onclick="toggleTxDay('${g.key}')">
+            <div class="dh-date">${thaiDateLabel(g.key)||escHtml(g.key)}</div>
+            ${g.key===today?`<span class="dh-today">วันนี้</span>`:''}
+            <span class="dh-sum">${parts.join(' · ')}</span>
+            <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
+          </div>
+          <div class="tx-day" id="${id}" style="display:${open?'block':'none'}">
+            ${g.items.map(renderTxItem).join('')}
+          </div>
+        </div>`;
+      });
     });
     document.getElementById('history-list').innerHTML=html;
     syncTxExpandBtn();
@@ -809,6 +835,11 @@ function txTimeLabel(t){
   if(m) return m[1];
   const d=new Date(s);
   return isNaN(d)?s:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function monthLabelTH(k){
+  const [y,m]=String(k).split('-');
+  const name=THAI_MONTHS_FULL[parseInt(m)-1];
+  return name?`${name} ${parseInt(y)+543}`:String(k);
 }
 function todayKey(){
   const d=new Date();
