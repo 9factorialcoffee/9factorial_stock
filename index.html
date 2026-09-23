@@ -157,6 +157,12 @@ select.form-control { -webkit-appearance:none; }
 .type-tab.adjust.active { background:#fff8e1; border-color:#f0b429; color:#b07d00; }
 
 .tx-item { padding:12px 16px; border-bottom:1px solid #f0ebe0; display:flex; gap:10px; }
+.hist-sel { background:var(--card); margin-bottom:8px; font-weight:500; color:var(--green); border-color:var(--green); }
+.hist-sel:last-of-type { margin-bottom:12px; }
+.day-head { display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f4ed; border-bottom:1px solid #ebe5d8; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.day-head .dh-date { font-weight:600; font-size:.86rem; flex:1; }
+.day-head .dh-sum { font-family:'IBM Plex Mono',monospace; font-size:.74rem; color:var(--muted); }
+.day-head .dh-today { background:var(--green-lt); color:#fff; border-radius:20px; padding:1px 8px; font-size:.68rem; font-weight:600; }
 .tx-item:last-child { border-bottom:none; }
 .tx-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
 .tx-icon.in { background:#e8f5ec; }
@@ -296,8 +302,10 @@ select.form-control { -webkit-appearance:none; }
     <div id="stock-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-history" class="page">
-    <select class="form-control" id="history-filter" onchange="loadHistory()"
-      style="background:var(--card);margin-bottom:12px;font-weight:500;color:var(--green);border-color:var(--green)">
+    <select class="form-control hist-sel" id="history-cat" onchange="onHistCatChange()">
+      <option value="">📂 ทุกหมวดหมู่</option>
+    </select>
+    <select class="form-control hist-sel" id="history-filter" onchange="loadHistory()">
       <option value="">📋 ทุกสินค้า</option>
     </select>
     <div id="history-list"><div class="loader">⏳ กำลังโหลด...</div></div>
@@ -693,21 +701,44 @@ async function deleteProduct(){
 function filterProducts() { applyStockFilter(); }
 
 // ── HISTORY ──
-async function loadHistory() {
+// เลือกหมวดก่อน แล้วค่อยเลือกสินค้าในหมวดนั้น — สินค้าเยอะ เลื่อนหาใน dropdown เดียวไม่ไหว
+function fillHistCats(){
+  const cs=document.getElementById('history-cat');
+  if(!cs || cs.options.length>1 || !(categories||[]).length) return;
+  const keep=cs.value;
+  cs.innerHTML='<option value="">📂 ทุกหมวดหมู่</option>'+
+    categories.map(c=>`<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
+  cs.value=keep;
+}
+function fillHistProducts(){
+  const cat=document.getElementById('history-cat').value;
   const sel=document.getElementById('history-filter');
-  // เติมรายชื่อสินค้าใน dropdown (ครั้งแรกเท่านั้น)
-  if(sel.options.length<=1 && (products||[]).length>0){
-    const keep=sel.value;
-    sel.innerHTML='<option value="">📋 ทุกสินค้า</option>'+
-      products.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
-    sel.value=keep;
-  }
+  const keep=sel.value;
+  const list=(products||[]).filter(p=>!cat||String(p.category_id)===String(cat));
+  sel.innerHTML=`<option value="">📋 ${cat?'ทุกสินค้าในหมวดนี้':'ทุกสินค้า'}</option>`+
+    list.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  // เปลี่ยนหมวดแล้วสินค้าเดิมยังอยู่ในหมวดใหม่ไหม ถ้าไม่อยู่ให้กลับไปเป็นทุกสินค้า
+  sel.value=list.some(p=>String(p.id)===String(keep))?keep:'';
+}
+async function onHistCatChange(){
+  fillHistProducts();
+  await loadHistory();
+}
+async function loadHistory() {
+  fillHistCats();
+  const sel=document.getElementById('history-filter');
+  if(sel.options.length<=1 && (products||[]).length>0) fillHistProducts();
   const pid=sel.value;
-  const url=pid?`${API}/transactions?product_id=${pid}&limit=100`:`${API}/transactions?limit=100`;
+  const cat=document.getElementById('history-cat').value;
+  let url=`${API}/transactions?limit=100`;
+  if(pid) url+=`&product_id=${pid}`;
+  else if(cat) url+=`&category_id=${cat}`;
   document.getElementById('history-list').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
     const txs=await fetch(url).then(r=>r.json());
-    if(txs.length===0){document.getElementById('history-list').innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>ยังไม่มีประวัติ</div></div>`;return;}
+    if(txs.length===0){
+      const filtered=pid||cat;
+      document.getElementById('history-list').innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>${filtered?'ไม่มีประวัติในตัวกรองนี้':'ยังไม่มีประวัติ'}</div></div>`;return;}
     let html='';
     // ถ้ากรองสินค้าเดียว แสดงสรุปรับ/เบิกของสินค้านั้นด้านบน
     if(pid){
@@ -719,18 +750,99 @@ async function loadHistory() {
         <div class="stat-card out-card"><div class="stat-num">${sumOut}</div><div class="stat-label">เบิกออกรวม (${unit})</div></div>
       </div>`;
     }
-    html+=`<div class="card">`;
-    txs.forEach(t=>{html+=renderTxItem(t);});
-    html+=`</div>`;
+    // ── จัดกลุ่มตามวัน — เดิมวันที่ซ้ำทุกบรรทัดแต่ไม่รู้ว่าวันเปลี่ยนตรงไหน ──
+    const groups=[];
+    const idx={};
+    txs.forEach(t=>{
+      const k=txDayKey(t);
+      if(idx[k]===undefined){ idx[k]=groups.length; groups.push({key:k,items:[]}); }
+      groups[idx[k]].items.push(t);
+    });
+    txDayKeys=groups.map(g=>g.key);
+    // วันล่าสุดกางไว้ ที่เหลือย่อ — เปิดมาต้องเห็นของวันนี้ทันที
+    txOpenDays=new Set(groups.length?[groups[0].key]:[]);
+    const today=todayKey();
+    html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📋 ${groups.length} วัน · ${txs.length} รายการ</span>
+      <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()">ขยายทั้งหมด</button>
+    </div>`;
+    groups.forEach(g=>{
+      const open=txOpenDays.has(g.key);
+      const id='tx-'+g.key.replace(/-/g,'');
+      const nIn=g.items.filter(t=>t.type==='in').length;
+      const nOut=g.items.filter(t=>t.type==='out').length;
+      const nAdj=g.items.filter(t=>t.type==='adjust').length;
+      const parts=[];
+      if(nIn) parts.push(`รับ ${nIn}`);
+      if(nOut) parts.push(`เบิก ${nOut}`);
+      if(nAdj) parts.push(`ปรับ ${nAdj}`);
+      html+=`<div class="card" style="margin-bottom:10px">
+        <div class="day-head" onclick="toggleTxDay('${g.key}')">
+          <div class="dh-date">${thaiDateLabel(g.key)||escHtml(g.key)}</div>
+          ${g.key===today?`<span class="dh-today">วันนี้</span>`:''}
+          <span class="dh-sum">${parts.join(' · ')}</span>
+          <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
+        </div>
+        <div class="tx-day" id="${id}" style="display:${open?'block':'none'}">
+          ${g.items.map(renderTxItem).join('')}
+        </div>
+      </div>`;
+    });
     document.getElementById('history-list').innerHTML=html;
+    syncTxExpandBtn();
   } catch { document.getElementById('history-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
+// ── ประวัติ: จัดกลุ่มรายวัน + ย่อ/ขยาย ───────────────────
+let txOpenDays=new Set();
+let txDayKeys=[];
+function txDayKey(t){
+  const s=String(t.created_at||'');
+  // created_at เก็บเป็นเวลาไทยอยู่แล้ว ตัดสตริงตรงๆ ปลอดภัยกว่าแปลงเป็น Date
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  const d=new Date(s);
+  if(isNaN(d)) return 'ไม่ระบุวัน';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function txTimeLabel(t){
+  const s=String(t.created_at||'');
+  const m=s.match(/[T ](\d{2}:\d{2})/);
+  if(m) return m[1];
+  const d=new Date(s);
+  return isNaN(d)?s:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function todayKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function toggleTxDay(key){
+  const open=!txOpenDays.has(key);
+  if(open) txOpenDays.add(key); else txOpenDays.delete(key);
+  setTxDay(key,open);
+  syncTxExpandBtn();
+}
+function setTxDay(key,open){
+  const id='tx-'+String(key).replace(/-/g,'');
+  const box=document.getElementById(id);
+  const chev=document.getElementById(id+'-c');
+  if(box) box.style.display=open?'block':'none';
+  if(chev) chev.style.transform=open?'rotate(180deg)':'';
+}
+function toggleAllTxDays(){
+  const openAll=txOpenDays.size<txDayKeys.length;
+  txDayKeys.forEach(k=>setTxDay(k,openAll));
+  txOpenDays=openAll?new Set(txDayKeys):new Set();
+  syncTxExpandBtn();
+}
+function syncTxExpandBtn(){
+  const b=document.getElementById('tx-expand-all');
+  if(b) b.textContent=(txOpenDays.size<txDayKeys.length)?'ขยายทั้งหมด':'ย่อทั้งหมด';
+}
+
 function renderTxItem(t) {
   const icons={in:'➕',out:'➖',adjust:'🔄'};
   const unit=t.unit||'';
   const qtyLabel=t.type==='in'?`+${t.quantity} ${unit}`:t.type==='out'?`-${t.quantity} ${unit}`:`=${t.stock_after} ${unit}`;
-  const d=new Date(t.created_at);
-  const dateStr=isNaN(d)?t.created_at:`${d.getDate()}/${d.getMonth()+1} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  const dateStr=txTimeLabel(t);
   const clickAttr=t.product_id?`onclick="openTx(${t.product_id},'${escHtml(t.product_name||'')}','${escHtml(unit)}')" style="cursor:pointer"`:'';
   return `<div class="tx-item" ${clickAttr}>
     <div class="tx-icon ${t.type}">${icons[t.type]}</div>
