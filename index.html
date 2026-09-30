@@ -728,109 +728,179 @@ async function onHistCatChange(){
   fillHistProducts();
   await loadHistory();
 }
+// ── ประวัติ: โหลดทีละเดือน ───────────────────────────────
+// เดิมดึง 100 รายการล่าสุดทีเดียว พอร้านใช้วันละสิบกว่ารายการ 100 รายการคลุมได้แค่สัปดาห์เดียว
+// ตอนนี้: ดึงสรุปทุกเดือนก่อน (เบา) → โชว์หัวข้อครบทุกเดือน → เดือนไหนเปิดค่อยดึงรายการของเดือนนั้น
+let txOpenMonths=new Set();
+let txMonthKeys=[];
+let txOpenDays=new Set();
+let txDayKeys=[];
+let txMonthSummary=[];
+let txMonthData={};      // เดือน → รายการที่โหลดแล้ว
+let txMonthPending={};   // เดือนที่กำลังโหลด — กันกดซ้ำแล้วยิงซ้ำ
+let txMonthError={};     // เดือนที่โหลดพลาด — โชว์ปุ่มลองใหม่
+let txLoadSeq=0;         // เปลี่ยนตัวกรองเร็วๆ ผลของตัวกรองเก่าต้องไม่มาทับ
+let txExpandAll=false;   // กดขยายทั้งหมดแล้ว เดือนที่โหลดทีหลังต้องกางตาม
+let txCtx={pid:'',cat:'',unit:''};
+
+function txUrl(path,extra){
+  const q=new URLSearchParams(extra||{});
+  if(txCtx.pid) q.set('product_id',txCtx.pid);
+  else if(txCtx.cat) q.set('category_id',txCtx.cat);
+  const qs=q.toString();
+  return API+path+(qs?'?'+qs:'');
+}
+
 async function loadHistory() {
   fillHistCats();
   const sel=document.getElementById('history-filter');
   if(sel.options.length<=1 && (products||[]).length>0) fillHistProducts();
   const pid=sel.value;
   const cat=document.getElementById('history-cat').value;
-  let url=`${API}/transactions?limit=100`;
-  if(pid) url+=`&product_id=${pid}`;
-  else if(cat) url+=`&category_id=${cat}`;
-  document.getElementById('history-list').innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
+  const seq=++txLoadSeq;
+  txCtx={pid,cat,unit:''};
+  txMonthSummary=[]; txMonthData={}; txMonthPending={}; txMonthError={};
+  txMonthKeys=[]; txOpenMonths=new Set(); txDayKeys=[]; txOpenDays=new Set();
+  txExpandAll=false;
+  const list=document.getElementById('history-list');
+  list.innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
-    const txs=await fetch(url).then(r=>r.json());
-    if(txs.length===0){
-      const filtered=pid||cat;
-      document.getElementById('history-list').innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>${filtered?'ไม่มีประวัติในตัวกรองนี้':'ยังไม่มีประวัติ'}</div></div>`;return;}
-    let html='';
-    // ถ้ากรองสินค้าเดียว แสดงสรุปรับ/เบิกของสินค้านั้นด้านบน
-    if(pid){
-      const sumIn=txs.filter(t=>t.type==='in').reduce((s,t)=>s+t.quantity,0);
-      const sumOut=txs.filter(t=>t.type==='out').reduce((s,t)=>s+t.quantity,0);
-      const unit=txs[0].unit||'';
-      html+=`<div class="stat-grid">
-        <div class="stat-card in-card"><div class="stat-num">${sumIn}</div><div class="stat-label">รับเข้ารวม (${unit})</div></div>
-        <div class="stat-card out-card"><div class="stat-num">${sumOut}</div><div class="stat-label">เบิกออกรวม (${unit})</div></div>
-      </div>`;
+    const months=await fetch(txUrl('/transactions/months')).then(r=>r.json());
+    if(seq!==txLoadSeq) return;
+    if(!Array.isArray(months)){
+      // worker ตัวเก่ายังไม่มี /transactions/months
+      list.innerHTML=`<div class="loader">❌ โหลดไม่ได้ — ต้องอัป worker.js ตัวใหม่ด้วย</div>`;return;
     }
-    // ── จัดกลุ่ม เดือน → วัน ──
-    const days=[]; const dIdx={};
-    txs.forEach(t=>{
-      const k=txDayKey(t);
-      if(dIdx[k]===undefined){ dIdx[k]=days.length; days.push({key:k,items:[]}); }
-      days[dIdx[k]].items.push(t);
-    });
-    const months=[]; const mIdx={};
-    days.forEach(d=>{
-      const mk=d.key.substring(0,7);
-      if(mIdx[mk]===undefined){ mIdx[mk]=months.length; months.push({key:mk,days:[]}); }
-      months[mIdx[mk]].days.push(d);
-    });
-    txDayKeys=days.map(d=>d.key);
-    txMonthKeys=months.map(m=>m.key);
+    if(months.length===0){
+      list.innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>${pid||cat?'ไม่มีประวัติในตัวกรองนี้':'ยังไม่มีประวัติ'}</div></div>`;return;
+    }
+    txMonthSummary=months;
+    txMonthKeys=months.map(m=>m.month);
+    txCtx.unit=pid?((months.find(m=>m.unit)||{}).unit||''):'';
     // เดือนล่าสุดเปิด เดือนเก่าพับไว้ — ย้อนหลังเป็นปีจะได้ไม่ต้องเลื่อนผ่านทุกเดือน
     txOpenMonths=new Set(txMonthKeys.slice(0,1));
-    // เลือกสินค้าเจาะจง = ตั้งใจมาไล่ดูของตัวนั้น กางทุกวันในเดือนที่เปิดอยู่
-    // ไม่ได้เลือก = รายการเยอะจากหลายสินค้า กางแค่วันล่าสุด
-    txOpenDays=pid ? new Set(txDayKeys) : new Set(txDayKeys.slice(0,1));
-    const today=todayKey();
-    const unit=pid&&txs[0]?(txs[0].unit||''):'';
-
-    html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>📋 ${days.length} วัน · ${txs.length} รายการ</span>
-      <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()"></button>
-    </div>`;
-
-    months.forEach(mo=>{
-      const all=mo.days.flatMap(d=>d.items);
-      // เลือกสินค้าเดียว = หน่วยเดียวกันหมด รวมจำนวนได้
-      // หลายสินค้า = หน่วยคนละอย่าง บวกกันไม่มีความหมาย นับเป็นรายการแทน
-      const sum = pid
-        ? [['รับ','in'],['เบิก','out']]
-            .map(([lb,ty])=>{const q=all.filter(t=>t.type===ty).reduce((s2,t)=>s2+num(t.quantity),0);return q?`${lb} ${fmt1(q)}`:'';})
-            .filter(Boolean).join(' · ')+(unit?` ${unit}`:'')
-        : [['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
-            .map(([lb,ty])=>{const n2=all.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
-            .filter(Boolean).join(' · ')+' รายการ';
-      const mOpen=txOpenMonths.has(mo.key);
-      const mId=txMonthId(mo.key);
-      html+=`<div class="mon-head" onclick="toggleTxMonth('${mo.key}')">
-        <span class="mh-name">${monthLabelTH(mo.key)}</span>
-        <span class="mh-sum">${mo.days.length} วัน · ${sum}</span>
-        <span class="cup-chev" id="${mId}-c" style="${mOpen?'transform:rotate(180deg)':''}">▾</span>
-      </div>
-      <div class="tx-month" id="${mId}" style="display:${mOpen?'block':'none'}">`;
-
-      mo.days.forEach(g=>{
-        const open=txOpenDays.has(g.key);
-        const id='tx-'+g.key.replace(/-/g,'');
-        const parts=[['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
-          .map(([lb,ty])=>{const n2=g.items.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
-          .filter(Boolean);
-        html+=`<div class="card" style="margin-bottom:10px">
-          <div class="day-head" onclick="toggleTxDay('${g.key}')">
-            <div class="dh-date">${thaiDateLabel(g.key)||escHtml(g.key)}</div>
-            ${g.key===today?`<span class="dh-today">วันนี้</span>`:''}
-            <span class="dh-sum">${parts.join(' · ')}</span>
-            <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
-          </div>
-          <div class="tx-day" id="${id}" style="display:${open?'block':'none'}">
-            ${g.items.map(renderTxItem).join('')}
-          </div>
-        </div>`;
-      });
-      html+=`</div>`;
-    });
-    document.getElementById('history-list').innerHTML=html;
-    syncTxExpandBtn();
-  } catch { document.getElementById('history-list').innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
+    renderHistoryShell();
+    await loadTxMonth(txMonthKeys[0],seq);
+  } catch { if(seq===txLoadSeq) list.innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
-// ── ประวัติ: จัดกลุ่มรายวัน + ย่อ/ขยาย ───────────────────
-let txOpenMonths=new Set();
-let txMonthKeys=[];
-let txOpenDays=new Set();
-let txDayKeys=[];
+
+function renderHistoryShell(){
+  const {pid,unit}=txCtx;
+  const ms=txMonthSummary;
+  let html='';
+  // เลือกสินค้าเดียว → สรุปรับ/เบิกรวมทุกเดือน (เดิมรวมแค่ 100 รายการล่าสุด ตัวเลขเลยต่ำกว่าจริง)
+  if(pid){
+    const sumIn=ms.reduce((a,m)=>a+num(m.qty_in),0);
+    const sumOut=ms.reduce((a,m)=>a+num(m.qty_out),0);
+    html+=`<div class="stat-grid">
+      <div class="stat-card in-card"><div class="stat-num">${fmt1(sumIn)}</div><div class="stat-label">รับเข้ารวม (${escHtml(unit)})</div></div>
+      <div class="stat-card out-card"><div class="stat-num">${fmt1(sumOut)}</div><div class="stat-label">เบิกออกรวม (${escHtml(unit)})</div></div>
+    </div>`;
+  }
+  const totDays=ms.reduce((a,m)=>a+num(m.days),0);
+  const totN=ms.reduce((a,m)=>a+num(m.n),0);
+  html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span>📋 ${ms.length} เดือน · ${totDays} วัน · ${totN} รายการ</span>
+    <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()"></button>
+  </div>`;
+  ms.forEach(m=>{
+    const mOpen=txOpenMonths.has(m.month);
+    const mId=txMonthId(m.month);
+    html+=`<div class="mon-head" onclick="toggleTxMonth('${m.month}')">
+      <span class="mh-name">${monthLabelTH(m.month)}</span>
+      <span class="mh-sum">${num(m.days)} วัน · ${txMonthSumText(m)}</span>
+      <span class="cup-chev" id="${mId}-c" style="${mOpen?'transform:rotate(180deg)':''}">▾</span>
+    </div>
+    <div class="tx-month" id="${mId}" style="display:${mOpen?'block':'none'}">${
+      txMonthData[m.month] ? renderTxMonthDays(m.month)
+      : txMonthError[m.month] ? `<div class="loader" style="padding:16px">❌ โหลดไม่ได้ <button class="cup-expand" onclick="loadTxMonth('${m.month}')">ลองใหม่</button></div>`
+      : `<div class="loader" style="padding:16px">⏳ กำลังโหลด...</div>`
+    }</div>`;
+  });
+  document.getElementById('history-list').innerHTML=html;
+  syncTxExpandBtn();
+}
+
+// สรุปท้ายหัวข้อเดือน
+// เลือกสินค้าเดียว = หน่วยเดียวกันหมด รวมจำนวนได้
+// หลายสินค้า = หน่วยคนละอย่าง บวกกันไม่มีความหมาย นับเป็นรายการแทน
+function txMonthSumText(m){
+  if(txCtx.pid){
+    const q=[];
+    if(num(m.qty_in)) q.push(`รับ ${fmt1(m.qty_in)}`);
+    if(num(m.qty_out)) q.push(`เบิก ${fmt1(m.qty_out)}`);
+    if(q.length) return q.join(' · ')+(txCtx.unit?` ${escHtml(txCtx.unit)}`:'');
+  }
+  const c=[];
+  if(num(m.n_in)) c.push(`รับ ${num(m.n_in)}`);
+  if(num(m.n_out)) c.push(`เบิก ${num(m.n_out)}`);
+  if(num(m.n_adj)) c.push(`ปรับ ${num(m.n_adj)}`);
+  return c.join(' · ')+' รายการ';
+}
+
+function loadTxMonth(month,seq){
+  if(txMonthData[month]) return Promise.resolve();
+  if(txMonthPending[month]) return txMonthPending[month];
+  const s=seq||txLoadSeq;
+  const pendingMap=txMonthPending;
+  if(txMonthError[month]){ delete txMonthError[month]; renderHistoryShell(); }   // กดลองใหม่ → กลับไปโชว์กำลังโหลด
+  const job=(async()=>{
+    try{
+      const txs=await fetch(txUrl('/transactions',{month})).then(r=>r.json());
+      if(s!==txLoadSeq) return;               // ตัวกรองเปลี่ยนไปแล้ว ทิ้งผลนี้
+      txMonthData[month]=Array.isArray(txs)?txs:[];
+      const days=groupTxDays(txMonthData[month]);
+      const newest=month===txMonthKeys[0];
+      days.forEach((d,i)=>{
+        if(!txDayKeys.includes(d.key)) txDayKeys.push(d.key);
+        // เลือกสินค้า = ตั้งใจมาไล่ดูตัวนั้น กางทุกวัน · ไม่เลือก = กางแค่วันล่าสุด
+        if(txCtx.pid||txExpandAll||(newest&&i===0)) txOpenDays.add(d.key);
+      });
+      renderHistoryShell();                   // วาดใหม่ทั้งก้อน สถานะมาจากตัวแปรชุดเดียว
+    }catch{
+      if(s!==txLoadSeq) return;
+      txMonthError[month]=true;
+      renderHistoryShell();
+    }finally{ delete pendingMap[month]; }
+  })();
+  pendingMap[month]=job;
+  return job;
+}
+
+function groupTxDays(txs){
+  const days=[]; const idx={};
+  txs.forEach(t=>{
+    const k=txDayKey(t);
+    if(idx[k]===undefined){ idx[k]=days.length; days.push({key:k,items:[]}); }
+    days[idx[k]].items.push(t);
+  });
+  return days;
+}
+
+function renderTxMonthDays(month){
+  const days=groupTxDays(txMonthData[month]||[]);
+  if(!days.length) return `<div class="loader" style="padding:16px">ไม่มีรายการ</div>`;
+  const today=todayKey();
+  return days.map(g=>{
+    const open=txOpenDays.has(g.key);
+    const id='tx-'+g.key.replace(/-/g,'');
+    const parts=[['รับ','in'],['เบิก','out'],['ปรับ','adjust']]
+      .map(([lb,ty])=>{const n2=g.items.filter(t=>t.type===ty).length;return n2?`${lb} ${n2}`:'';})
+      .filter(Boolean);
+    return `<div class="card" style="margin-bottom:10px">
+      <div class="day-head" onclick="toggleTxDay('${g.key}')">
+        <div class="dh-date">${thaiDateLabel(g.key)||escHtml(g.key)}</div>
+        ${g.key===today?`<span class="dh-today">วันนี้</span>`:''}
+        <span class="dh-sum">${parts.join(' · ')}</span>
+        <span class="cup-chev" id="${id}-c" style="${open?'transform:rotate(180deg)':''}">▾</span>
+      </div>
+      <div class="tx-day" id="${id}" style="display:${open?'block':'none'}">
+        ${g.items.map(renderTxItem).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function txDayKey(t){
   const s=String(t.created_at||'');
   // created_at เก็บเป็นเวลาไทยอยู่แล้ว ตัดสตริงตรงๆ ปลอดภัยกว่าแปลงเป็น Date
@@ -869,12 +939,13 @@ function setTxDay(key,open){
   if(chev) chev.style.transform=open?'rotate(180deg)':'';
 }
 function txMonthId(k){ return 'txm-'+String(k).replace(/-/g,''); }
-// ย่อ/ขยายทีละเดือน — ปีนึง 12 เดือน ถ้ากดทีเดียวกางหมดจะเลื่อนหายาก
+// ย่อ/ขยายทีละเดือน — เปิดเดือนไหน ค่อยโหลดเดือนนั้น
 function toggleTxMonth(key){
   const open=!txOpenMonths.has(key);
   if(open) txOpenMonths.add(key); else txOpenMonths.delete(key);
   setTxMonth(key,open);
   syncTxExpandBtn();
+  if(open&&!txMonthData[key]) loadTxMonth(key);
 }
 function setTxMonth(key,open){
   const id=txMonthId(key);
@@ -883,19 +954,24 @@ function setTxMonth(key,open){
   if(box) box.style.display=open?'block':'none';
   if(chev) chev.style.transform=open?'rotate(180deg)':'';
 }
-function toggleAllTxDays(){
-  const openAll=txOpenMonths.size<txMonthKeys.length||txOpenDays.size<txDayKeys.length;
+function txAllOpen(){
+  return txMonthKeys.length>0 && txOpenMonths.size===txMonthKeys.length && txDayKeys.every(k=>txOpenDays.has(k));
+}
+async function toggleAllTxDays(){
+  const openAll=!txAllOpen();
+  txExpandAll=openAll;
   txMonthKeys.forEach(k=>setTxMonth(k,openAll));
   txDayKeys.forEach(k=>setTxDay(k,openAll));
   txOpenMonths=openAll?new Set(txMonthKeys):new Set();
   txOpenDays=openAll?new Set(txDayKeys):new Set();
   syncTxExpandBtn();
+  // ขยายทั้งหมด = ต้องมีข้อมูลครบทุกเดือน โหลดเดือนที่ยังไม่มีพร้อมกัน
+  if(openAll){ const s=txLoadSeq; await Promise.all(txMonthKeys.map(m=>loadTxMonth(m,s))); }
 }
 function syncTxExpandBtn(){
   const b=document.getElementById('tx-expand-all');
   if(!b) return;
-  const allOpen=txOpenMonths.size===txMonthKeys.length&&txOpenDays.size===txDayKeys.length;
-  b.textContent=allOpen?'ย่อทั้งหมด':'ขยายทั้งหมด';
+  b.textContent=txAllOpen()?'ย่อทั้งหมด':'ขยายทั้งหมด';
 }
 
 function renderTxItem(t) {
@@ -1327,6 +1403,7 @@ function cupBriefLine(d){
     <span style="color:var(--muted)">ร้อน ${sign(diffHot)}</span>`;
   const fr=num(d.free_hot)+num(d.free_cold), ws=num(d.waste_hot)+num(d.waste_cold);
   if(fr>0) h+=`<span style="color:var(--muted)">ฟรี ${fmt1(fr)}</span>`;
+  if(num(d.bag_cold)>0) h+=`<span style="color:var(--muted)">ถุง ${fmt1(d.bag_cold)}</span>`;
   if(ws>0) h+=`<span style="color:var(--muted)">เสีย ${fmt1(ws)}</span>`;
   // วันที่มีปัญหา ต้องบอกสั้นๆ ตั้งแต่ตอนย่อ ว่าควรกดดูเพราะอะไร
   if(d.issues&&d.issues.length){
@@ -1350,6 +1427,7 @@ function cupDayLines(d,scope){
       + row('+ เบิกจากสต็อค', d.withdrawn_hot, d.withdrawn_cold);
     if(d.sales_hot!==null&&d.sales_hot!==undefined){
       h+=row('ขาย (POS)', d.sales_hot, d.sales_cold, 'gap');
+      if(num(d.bag_cold)>0) h+=`<tr><td class="lbl">ใส่ถุงซิบ</td><td class="n" style="color:var(--muted)">—</td><td class="n">${N(d.bag_cold)}</td></tr>`;
     }
     h+=`</table><div class="cup-note">ยังคำนวณส่วนต่างไม่ได้ — ต้องมียอดนับเช้าของวันถัดไปก่อน</div>`;
     return h+cupEditBlock(d,scope);
@@ -1366,6 +1444,7 @@ function cupDayLines(d,scope){
     + row('= ใช้จริง', d.used_hot, d.used_cold, 'sum')
     + row('ขาย (POS)', d.sales_hot, d.sales_cold, 'gap')
     + row('− ฟรีพนักงาน', d.free_staff_hot, d.free_staff_cold)
+    + (num(d.bag_cold)>0?`<tr><td class="lbl">− ใส่ถุงซิบ</td><td class="n" style="color:var(--muted)">—</td><td class="n">${N(d.bag_cold)}</td></tr>`:'')
     + row('= ควรใช้', d.expected_hot, d.expected_cold, 'sum')
     + row('− ทำเสีย', d.waste_hot, d.waste_cold)
     + `<tr class="sum"><td class="lbl">= ส่วนต่าง</td>
@@ -1393,6 +1472,7 @@ const CUP_FIELD_TH={
   free_owner_hot:'ฟรีเจ้าของ ร้อน', free_owner_cold:'ฟรีเจ้าของ เย็น',
   free_staff_hot:'ฟรีพนักงาน ร้อน', free_staff_cold:'ฟรีพนักงาน เย็น',
   waste_hot:'ทำเสีย ร้อน', waste_cold:'ทำเสีย เย็น',
+  bag_cold:'ใส่ถุงซิบ เย็น',
   waste_note:'หมายเหตุ'
 };
 function cupEditBlock(d,scope){
@@ -1570,9 +1650,10 @@ function cupSummaryLines(r){
   const rows=[
     ['แก้วฟรีเจ้าของ', pair(r.free_owner_hot,r.free_owner_cold)],
     ['แก้วฟรีพนักงาน', pair(r.free_staff_hot,r.free_staff_cold)],
+    ['ใส่ถุงซิบ',      pair(0,r.bag_cold)],
     ['แก้วทำเสีย',     pair(r.waste_hot,r.waste_cold)],
   ].filter(x=>x[1]);
-  if(rows.length===0&&!r.waste_note) return `<div style="font-size:.78rem;color:var(--muted)">ไม่มีแก้วฟรีหรือทำเสีย</div>`;
+  if(rows.length===0&&!r.waste_note) return `<div style="font-size:.78rem;color:var(--muted)">ไม่มีแก้วฟรี ใส่ถุง หรือทำเสีย</div>`;
   let h='';
   rows.forEach(([lbl,val])=>{
     h+=`<div class="cup-line" style="margin-top:3px;color:var(--muted)"><span style="font-family:'Kanit',sans-serif">${lbl}</span><span>${val}</span></div>`;
@@ -1582,7 +1663,8 @@ function cupSummaryLines(r){
 }
 
 function cupCloseForm(r){
-  const hasExtra=num(r.free_owner_hot)||num(r.free_owner_cold)||num(r.free_staff_hot)||num(r.free_staff_cold)||num(r.waste_hot)||num(r.waste_cold);
+  // ต้องนับถุงซิบด้วย ไม่งั้นกลับมาแก้ยอดขายทีหลัง ช่องจะถูกซ่อนแล้วค่าที่เคยกรอกโดนเขียนทับเป็น 0
+  const hasExtra=num(r.free_owner_hot)||num(r.free_owner_cold)||num(r.free_staff_hot)||num(r.free_staff_cold)||num(r.waste_hot)||num(r.waste_cold)||num(r.bag_cold);
   const show=hasExtra||cupExtraOpen;
   const v=(x)=>r[x]!==undefined&&r[x]!==null?num0(r[x]):'';
   return `<div class="cup-card"><div class="cup-card-head"><div class="t">🌙 ปิดร้าน</div></div>
@@ -1602,17 +1684,28 @@ function cupCloseForm(r){
       <div style="border-top:1px solid #f0ebe0;padding-top:12px">
         ${cupExtraRow('แก้วฟรีเจ้าของ','fo',v('free_owner_hot'),v('free_owner_cold'),'อยู่ในยอด POS และใช้แก้วพลาสติก')}
         ${cupExtraRow('แก้วฟรีพนักงาน','fs',v('free_staff_hot'),v('free_staff_cold'),'อยู่ในยอด POS แต่ไม่ใช้แก้วพลาสติก')}
+        ${cupColdOnlyRow('เย็น ใส่ถุงซิบ','cup-bag-cold',v('bag_cold'),'ลูกค้ารับเป็นถุงซิบ ไม่รับแก้ว')}
         ${cupExtraRow('แก้วทำเสีย','wa',v('waste_hot'),v('waste_cold'),'ไม่อยู่ในยอด POS แต่เสียแก้วไป')}
         <div class="form-group">
           <label class="form-label">เหตุผลที่ทำเสีย</label>
           <input class="form-control" id="cup-waste-note" type="text" value="${escHtml(r.waste_note||'')}" placeholder="เช่น ทำหกตอนเร่ง">
         </div>
       </div>`:`
-      <button class="cup-toggle" onclick="cupExtraOpen=true;renderCups()">+ มีแก้วฟรีหรือทำเสีย</button>`}
+      <button class="cup-toggle" onclick="cupExtraOpen=true;renderCups()">+ มีแก้วฟรี ใส่ถุงซิบ หรือทำเสีย</button>`}
       <button class="btn btn-primary btn-full" id="btn-cup-close" onclick="saveCupClose()">💾 บันทึกปิดร้าน</button>
     </div></div>`;
 }
 
+// ช่องที่มีแต่เย็น — วางไว้ใต้คอลัมน์เย็นให้ตรงกับช่องอื่น จะได้ไม่กรอกสลับ
+function cupColdOnlyRow(label,id,cold,hint){
+  return `<div style="margin-bottom:10px">
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">${label}${hint?` <span style="font-size:.72rem;opacity:.75">— ${hint}</span>`:''}</div>
+    <div class="cup-row">
+      <div style="display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--muted);background:var(--bg);border-radius:10px">ร้อนไม่มี</div>
+      <input class="form-control" id="${id}" type="number" min="0" step="1" inputmode="numeric" value="${cold}" placeholder="เย็น 0">
+    </div>
+  </div>`;
+}
 function cupExtraRow(label,key,hot,cold,hint){
   return `<div style="margin-bottom:10px">
     <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">${label}${hint?` <span style="font-size:.72rem;opacity:.75">— ${hint}</span>`:''}</div>
@@ -1654,6 +1747,7 @@ async function saveCupClose(){
         free_owner_hot:g('cup-fo-hot'),free_owner_cold:g('cup-fo-cold'),
         free_staff_hot:g('cup-fs-hot'),free_staff_cold:g('cup-fs-cold'),
         waste_hot:g('cup-wa-hot'),waste_cold:g('cup-wa-cold'),
+        bag_cold:g('cup-bag-cold'),
         waste_note:noteEl?noteEl.value:'',
         user_id:currentUser.id,user_name:currentUser.name})});
     const d=await res.json();
