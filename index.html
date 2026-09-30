@@ -176,6 +176,7 @@ select.form-control { -webkit-appearance:none; }
 .tx-name { font-size:.9rem; font-weight:500; }
 .tx-meta { font-size:.75rem; color:var(--muted); margin-top:2px; }
 .tx-qty { font-family:'IBM Plex Mono',monospace; font-size:.85rem; font-weight:600; text-align:right; white-space:nowrap; }
+.tx-qty-sub { font-size:.7rem; font-weight:400; color:var(--muted); margin-top:3px; }
 .tx-qty.in { color:var(--green-lt); }
 .tx-qty.out { color:var(--danger); }
 
@@ -979,6 +980,13 @@ function renderTxItem(t) {
   const unit=t.unit||'';
   const qtyLabel=t.type==='in'?`+${t.quantity} ${unit}`:t.type==='out'?`-${t.quantity} ${unit}`:`=${t.stock_after} ${unit}`;
   const dateStr=txTimeLabel(t);
+  // ปรับยอด: บอกยอดเดิมด้วย จะได้รู้ว่าปรับจากเท่าไหร่ หายไปหรือเพิ่มขึ้นเท่าไหร่
+  let sub='';
+  if(t.type==='adjust'&&t.stock_before!==null&&t.stock_before!==undefined&&t.stock_before!==''){
+    const before=num(t.stock_before), after=num(t.stock_after);
+    const diff=Math.round((after-before)*100)/100;
+    sub=`<div class="tx-qty-sub">จากเดิม ${fmt1(before)}${diff?` (${diff>0?'+':'-'}${fmt1(Math.abs(diff))})`:''}</div>`;
+  }
   const clickAttr=t.product_id?`onclick="openTx(${t.product_id},'${escHtml(t.product_name||'')}','${escHtml(unit)}')" style="cursor:pointer"`:'';
   return `<div class="tx-item" ${clickAttr}>
     <div class="tx-icon ${t.type}">${icons[t.type]}</div>
@@ -986,7 +994,7 @@ function renderTxItem(t) {
       <div class="tx-name">${escHtml(t.product_name||'')}</div>
       <div class="tx-meta">${dateStr} · ${escHtml(t.user_name||'ไม่ระบุ')}${t.reason?' · '+escHtml(t.reason):''}</div>
     </div>
-    <div class="tx-qty ${t.type}">${qtyLabel}</div>
+    <div class="tx-qty ${t.type}">${qtyLabel}${sub}</div>
   </div>`;
 }
 
