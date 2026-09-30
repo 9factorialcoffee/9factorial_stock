@@ -313,6 +313,7 @@ select.form-control { -webkit-appearance:none; }
     <select class="form-control hist-sel" id="history-filter" onchange="loadHistory()">
       <option value="">📋 ทุกสินค้า</option>
     </select>
+    <div class="cat-chips" id="history-types" style="margin-bottom:12px"></div>
     <div id="history-list"><div class="loader">⏳ กำลังโหลด...</div></div>
   </div>
   <div id="page-report" class="page">
@@ -742,6 +743,8 @@ let txMonthPending={};   // เดือนที่กำลังโหลด 
 let txMonthError={};     // เดือนที่โหลดพลาด — โชว์ปุ่มลองใหม่
 let txLoadSeq=0;         // เปลี่ยนตัวกรองเร็วๆ ผลของตัวกรองเก่าต้องไม่มาทับ
 let txExpandAll=false;   // กดขยายทั้งหมดแล้ว เดือนที่โหลดทีหลังต้องกางตาม
+let histType='';           // '' | in | out | adjust — คงไว้ตอนเปลี่ยนหมวด/สินค้า
+let txSummaryReady=false;
 let txCtx={pid:'',cat:'',unit:''};
 
 function txUrl(path,extra){
@@ -762,7 +765,8 @@ async function loadHistory() {
   txCtx={pid,cat,unit:''};
   txMonthSummary=[]; txMonthData={}; txMonthPending={}; txMonthError={};
   txMonthKeys=[]; txOpenMonths=new Set(); txDayKeys=[]; txOpenDays=new Set();
-  txExpandAll=false;
+  txExpandAll=false; txSummaryReady=false;
+  renderHistTypes();
   const list=document.getElementById('history-list');
   list.innerHTML=`<div class="loader">⏳ กำลังโหลด...</div>`;
   try {
@@ -772,44 +776,52 @@ async function loadHistory() {
       // worker ตัวเก่ายังไม่มี /transactions/months
       list.innerHTML=`<div class="loader">❌ โหลดไม่ได้ — ต้องอัป worker.js ตัวใหม่ด้วย</div>`;return;
     }
+    txSummaryReady=true;
+    txMonthSummary=months;
+    renderHistTypes();
     if(months.length===0){
       list.innerHTML=`<div class="empty-state"><div class="emoji">📋</div><div>${pid||cat?'ไม่มีประวัติในตัวกรองนี้':'ยังไม่มีประวัติ'}</div></div>`;return;
     }
-    txMonthSummary=months;
-    txMonthKeys=months.map(m=>m.month);
     txCtx.unit=pid?((months.find(m=>m.unit)||{}).unit||''):'';
-    // เดือนล่าสุดเปิด เดือนเก่าพับไว้ — ย้อนหลังเป็นปีจะได้ไม่ต้องเลื่อนผ่านทุกเดือน
-    txOpenMonths=new Set(txMonthKeys.slice(0,1));
+    applyTxDefaults();
     renderHistoryShell();
-    await loadTxMonth(txMonthKeys[0],seq);
+    await Promise.all([...txOpenMonths].map(m=>loadTxMonth(m,seq)));
   } catch { if(seq===txLoadSeq) list.innerHTML=`<div class="loader">❌ โหลดไม่ได้</div>`; }
 }
 
 function renderHistoryShell(){
   const {pid,unit}=txCtx;
-  const ms=txMonthSummary;
+  rebuildTxKeys();
+  const ms=txVisibleMonths();
   let html='';
   // เลือกสินค้าเดียว → สรุปรับ/เบิกรวมทุกเดือน (เดิมรวมแค่ 100 รายการล่าสุด ตัวเลขเลยต่ำกว่าจริง)
   if(pid){
-    const sumIn=ms.reduce((a,m)=>a+num(m.qty_in),0);
-    const sumOut=ms.reduce((a,m)=>a+num(m.qty_out),0);
+    const sumIn=txMonthSummary.reduce((a,m)=>a+num(m.qty_in),0);
+    const sumOut=txMonthSummary.reduce((a,m)=>a+num(m.qty_out),0);
     html+=`<div class="stat-grid">
       <div class="stat-card in-card"><div class="stat-num">${fmt1(sumIn)}</div><div class="stat-label">รับเข้ารวม (${escHtml(unit)})</div></div>
       <div class="stat-card out-card"><div class="stat-num">${fmt1(sumOut)}</div><div class="stat-label">เบิกออกรวม (${escHtml(unit)})</div></div>
     </div>`;
   }
-  const totDays=ms.reduce((a,m)=>a+num(m.days),0);
-  const totN=ms.reduce((a,m)=>a+num(m.n),0);
+  if(ms.length===0){
+    html+=`<div class="empty-state"><div class="emoji">📋</div><div>ไม่มีรายการ${TX_LABEL[histType]||''}ในตัวกรองนี้</div></div>`;
+    document.getElementById('history-list').innerHTML=html;
+    return;
+  }
+  const dayVals=ms.map(m=>txTypeDays(m,histType));
+  const totDays=dayVals.every(v=>v!==null)?dayVals.reduce((a,v)=>a+v,0):null;
+  const totN=ms.reduce((a,m)=>a+txTypeCount(m,histType),0);
   html+=`<div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
-    <span>📋 ${ms.length} เดือน · ${totDays} วัน · ${totN} รายการ</span>
+    <span>📋 ${ms.length} เดือน · ${totDays!==null?totDays+' วัน · ':''}${totN} รายการ</span>
     <button class="cup-expand" id="tx-expand-all" onclick="toggleAllTxDays()"></button>
   </div>`;
   ms.forEach(m=>{
     const mOpen=txOpenMonths.has(m.month);
     const mId=txMonthId(m.month);
+    const dv=txTypeDays(m,histType);
     html+=`<div class="mon-head" onclick="toggleTxMonth('${m.month}')">
       <span class="mh-name">${monthLabelTH(m.month)}</span>
-      <span class="mh-sum">${num(m.days)} วัน · ${txMonthSumText(m)}</span>
+      <span class="mh-sum">${dv!==null?dv+' วัน · ':''}${txMonthSumText(m)}</span>
       <span class="cup-chev" id="${mId}-c" style="${mOpen?'transform:rotate(180deg)':''}">▾</span>
     </div>
     <div class="tx-month" id="${mId}" style="display:${mOpen?'block':'none'}">${
@@ -826,6 +838,15 @@ function renderHistoryShell(){
 // เลือกสินค้าเดียว = หน่วยเดียวกันหมด รวมจำนวนได้
 // หลายสินค้า = หน่วยคนละอย่าง บวกกันไม่มีความหมาย นับเป็นรายการแทน
 function txMonthSumText(m){
+  if(histType){
+    const lb={in:'รับ',out:'เบิก',adjust:'ปรับ'}[histType];
+    // ปรับยอด: ตัวเลขคือยอดใหม่ ไม่ใช่จำนวนที่เปลี่ยน บวกกันไม่มีความหมาย นับเป็นรายการ
+    if(txCtx.pid&&histType!=='adjust'){
+      const q=num(m[histType==='in'?'qty_in':'qty_out']);
+      return `${lb} ${fmt1(q)}${txCtx.unit?' '+escHtml(txCtx.unit):''}`;
+    }
+    return `${lb} ${txTypeCount(m,histType)} รายการ`;
+  }
   if(txCtx.pid){
     const q=[];
     if(num(m.qty_in)) q.push(`รับ ${fmt1(m.qty_in)}`);
@@ -850,12 +871,9 @@ function loadTxMonth(month,seq){
       const txs=await fetch(txUrl('/transactions',{month})).then(r=>r.json());
       if(s!==txLoadSeq) return;               // ตัวกรองเปลี่ยนไปแล้ว ทิ้งผลนี้
       txMonthData[month]=Array.isArray(txs)?txs:[];
-      const days=groupTxDays(txMonthData[month]);
-      const newest=month===txMonthKeys[0];
-      days.forEach((d,i)=>{
-        if(!txDayKeys.includes(d.key)) txDayKeys.push(d.key);
-        // เลือกสินค้า = ตั้งใจมาไล่ดูตัวนั้น กางทุกวัน · ไม่เลือก = กางแค่วันล่าสุด
-        if(txCtx.pid||txExpandAll||(newest&&i===0)) txOpenDays.add(d.key);
+      rebuildTxKeys();
+      groupTxDays(txFilteredItems(month)).forEach((d,i)=>{
+        if(txDefaultDayOpen(month,i)) txOpenDays.add(d.key);
       });
       renderHistoryShell();                   // วาดใหม่ทั้งก้อน สถานะมาจากตัวแปรชุดเดียว
     }catch{
@@ -866,6 +884,62 @@ function loadTxMonth(month,seq){
   })();
   pendingMap[month]=job;
   return job;
+}
+
+// ── กรองตามประเภท: ทั้งหมด / รับ / เบิก / ปรับ ──
+// สลับได้ทันทีโดยไม่ต้องโหลดใหม่ เพราะแต่ละเดือนโหลดมาครบทุกประเภทอยู่แล้ว
+const TX_TYPES=[['','ทั้งหมด'],['in','➕ รับ'],['out','➖ เบิก'],['adjust','🔄 ปรับ']];
+const TX_SUF={in:'in',out:'out',adjust:'adj'};
+const TX_LABEL={in:'รับเข้า',out:'เบิกออก',adjust:'ปรับยอด'};
+function txTypeCount(m,type){ return type?num(m['n_'+TX_SUF[type]]):num(m.n); }
+function txTypeDays(m,type){
+  const v=type?m['days_'+TX_SUF[type]]:m.days;
+  return v===undefined||v===null?null:num(v);   // worker เก่าไม่มีตัวเลขนี้ → ไม่โชว์จำนวนวัน
+}
+function txVisibleMonths(){ return txMonthSummary.filter(m=>txTypeCount(m,histType)>0); }
+function txFilteredItems(month){
+  const a=txMonthData[month]||[];
+  return histType?a.filter(t=>t.type===histType):a;
+}
+function rebuildTxKeys(){
+  txMonthKeys=txVisibleMonths().map(m=>m.month);
+  const days=[];
+  txMonthKeys.forEach(mk=>{ if(txMonthData[mk]) groupTxDays(txFilteredItems(mk)).forEach(d=>days.push(d.key)); });
+  txDayKeys=days;
+}
+// วันไหนกางไว้ตั้งแต่แรก
+//  เลือกสินค้า / กรองรับ / กรองปรับ = รายการไม่มาก กางทุกวัน
+//  นอกนั้น = รายการเยอะ กางแค่วันล่าสุดของเดือนล่าสุด
+function txDefaultDayOpen(month,idx){
+  return !!(txCtx.pid||histType==='in'||histType==='adjust'||txExpandAll||(month===txMonthKeys[0]&&idx===0));
+}
+function applyTxDefaults(){
+  rebuildTxKeys();
+  // ปรับยอดมีน้อย เปิดทุกเดือนให้เห็นครบทีเดียว · อย่างอื่นเปิดแค่เดือนล่าสุด
+  txOpenMonths=new Set(histType==='adjust'?txMonthKeys:txMonthKeys.slice(0,1));
+  txOpenDays=new Set();
+  txMonthKeys.forEach(mk=>{
+    if(txMonthData[mk]) groupTxDays(txFilteredItems(mk)).forEach((d,i)=>{ if(txDefaultDayOpen(mk,i)) txOpenDays.add(d.key); });
+  });
+}
+function renderHistTypes(){
+  const box=document.getElementById('history-types');
+  if(!box) return;
+  box.innerHTML=TX_TYPES.map(([ty,lb])=>{
+    const cnt=txSummaryReady?txMonthSummary.reduce((a,m)=>a+txTypeCount(m,ty),0):null;
+    return `<button class="cat-chip ${histType===ty?'active':''}" onclick="setHistType('${ty}')">${lb}${cnt!==null?`<span class="cnt">${cnt}</span>`:''}</button>`;
+  }).join('');
+}
+async function setHistType(type){
+  if(type===histType) return;
+  histType=type;
+  txExpandAll=false;
+  renderHistTypes();
+  if(!txSummaryReady||!txMonthSummary.length) return;   // ยังโหลดอยู่ — loadHistory จะใช้ค่าใหม่เอง
+  applyTxDefaults();
+  renderHistoryShell();
+  const s=txLoadSeq;
+  await Promise.all([...txOpenMonths].map(m=>loadTxMonth(m,s)));
 }
 
 function groupTxDays(txs){
@@ -879,7 +953,7 @@ function groupTxDays(txs){
 }
 
 function renderTxMonthDays(month){
-  const days=groupTxDays(txMonthData[month]||[]);
+  const days=groupTxDays(txFilteredItems(month));
   if(!days.length) return `<div class="loader" style="padding:16px">ไม่มีรายการ</div>`;
   const today=todayKey();
   return days.map(g=>{
@@ -956,7 +1030,7 @@ function setTxMonth(key,open){
   if(chev) chev.style.transform=open?'rotate(180deg)':'';
 }
 function txAllOpen(){
-  return txMonthKeys.length>0 && txOpenMonths.size===txMonthKeys.length && txDayKeys.every(k=>txOpenDays.has(k));
+  return txMonthKeys.length>0 && txMonthKeys.every(k=>txOpenMonths.has(k)) && txDayKeys.every(k=>txOpenDays.has(k));
 }
 async function toggleAllTxDays(){
   const openAll=!txAllOpen();
@@ -965,7 +1039,7 @@ async function toggleAllTxDays(){
   txDayKeys.forEach(k=>setTxDay(k,openAll));
   txOpenMonths=openAll?new Set(txMonthKeys):new Set();
   txOpenDays=openAll?new Set(txDayKeys):new Set();
-  syncTxExpandBtn();
+  renderHistoryShell();   // วาดใหม่ทั้งหน้า — ถ้าทุกเดือนโหลดไว้แล้ว จะไม่มีอะไรมาวาดใหม่ให้
   // ขยายทั้งหมด = ต้องมีข้อมูลครบทุกเดือน โหลดเดือนที่ยังไม่มีพร้อมกัน
   if(openAll){ const s=txLoadSeq; await Promise.all(txMonthKeys.map(m=>loadTxMonth(m,s))); }
 }
